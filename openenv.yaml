@@ -1,20 +1,20 @@
-name: urban-mci-command-center
+﻿name: urban-mci-command-center
 version: "1.0.0"
-description: "Urban Mass Casualty Incident Command Environment — AI agent as incident commander triaging victims, dispatching ambulances, and coordinating rescue teams after a building collapse."
+description: "Urban Mass Casualty Incident Command Environment."
 
 tasks:
   - id: task_1
-    name: "Easy — 40 Victims"
+    name: "Easy - 40 Victims"
     difficulty: easy
-    description: "Small incident with 40 victims, 8 ambulances, 2 hospitals, no dynamic events"
+    description: "Small incident with 40 victims, 8 ambulances, 2 hospitals"
   - id: task_2
-    name: "Medium — 120 Victims"
+    name: "Medium - 120 Victims"
     difficulty: medium
     description: "Mid-scale incident with secondary collapse at step 30"
   - id: task_3
-    name: "Hard — 240 Victims"
+    name: "Hard - 240 Victims"
     difficulty: hard
-    description: "Large incident with road blockage, media pressure, and secondary collapse"
+    description: "Large incident with road blockage, media pressure, secondary collapse"
 
 endpoints:
   reset: POST /reset
@@ -26,43 +26,6 @@ environment:
   max_steps: 120
   default_task: 1
 
-observation:
-  type: dict
-  components:
-    - name: step
-      type: int
-    - name: golden_hour_remaining
-      type: int
-    - name: secondary_collapse_risk
-      type: float
-    - name: road_blocked
-      type: bool
-    - name: victims
-      type: list
-    - name: hospitals
-      type: list
-    - name: teams
-      type: list
-    - name: summary
-      type: dict
-
-action:
-  type: dict
-  directive_types:
-    - triage:
-        victim_id: int
-        tag: int
-    - dispatch:
-        team_id: int
-        victim_id: int
-        hospital_id: int
-    - assign_sar:
-        team_id: int
-        victim_id: int
-    - assign_fire:
-        team_id: int
-        victim_id: int
-
 grading:
   function: grade
   formula: "lives_saved / saveable_victims"
@@ -70,11 +33,8 @@ grading:
 tags:
   - openenv
   - emergency-response
-  - resource-allocation
-  - real-world
   - healthcare
-  - triage
 
 metadata:
-  domain: "Emergency Response / Healthcare"
+  domain: "Emergency Response"
   license: MIT
