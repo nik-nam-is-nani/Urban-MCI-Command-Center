@@ -1,0 +1,6 @@
+pydantic
+pyyaml
+numpy
+openai
+flask
+flask-cors

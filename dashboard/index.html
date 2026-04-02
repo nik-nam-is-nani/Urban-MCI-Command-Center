@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCI Simulation Dashboard</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #050a14; /* Deeper dark for premium feel */
+            --panel-bg: rgba(13, 18, 30, 0.7); /* More transparent for better glassmorphism */
+            --accent: #00f0ff; /* Brighter neon blue */
+            --accent-hover: #00c3ff;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --red-glow: rgba(244, 63, 94, 0.9); /* Rose tint for modern red */
+            --yellow-glow: rgba(250, 204, 21, 0.9);
+            --green-glow: rgba(16, 185, 129, 0.9); /* Emerald tint for modern green */
+            --black-glow: rgba(30, 41, 59, 0.8);
+            
+            --border-glow: rgba(0, 240, 255, 0.15);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: 320px 1fr 380px;
+            height: 100vh;
+            /* Premium gradient background with subtle animation */
+            background: radial-gradient(circle at top right, #0a1930, #050a14 60%);
+            position: relative;
+        }
+
+        /* Ambient background glow */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 20%;
+            left: 30%;
+            width: 40vw;
+            height: 40vw;
+            background: var(--accent);
+            opacity: 0.03;
+            filter: blur(150px);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* Glassmorphism panels */
+        .panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            z-index: 10;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        .left-panel { border-right: 1px solid var(--border-glow); }
+        .right-panel { border-left: 1px solid var(--border-glow); overflow-y: auto; }
+
+        .main-canvas-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 5;
+        }
+
+        #simCanvas {
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        .top-bar {
+            position: absolute;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(13, 18, 30, 0.85);
+            backdrop-filter: blur(16px);
+            padding: 12px 40px;
+            border-radius: 30px;
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.15), inset 0 0 15px rgba(0, 240, 255, 0.05);
+            text-align: center;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h2 { 
+            margin: 0 0 5px 0; 
+            font-size: 14px; 
+            font-family: 'Outfit', sans-serif;
+            color: var(--accent); 
+            text-transform: uppercase; 
+            letter-spacing: 3px;
+            font-weight: 700;
+        }
+        
+        h3 { 
+            margin: 0 0 10px 0; 
+            font-size: 15px; 
+            font-family: 'Outfit', sans-serif;
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        /* Controls */
+        .control-group { margin-bottom: 5px; }
+        
+        label { 
+            display: block; 
+            margin-bottom: 8px; 
+            color: var(--text-muted); 
+            font-size: 0.85rem;
+            font-weight: 500;
+            letter-spacing: 0.5px;
+        }
+        
+        select, button, input {
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+            border-radius: 8px;
+            outline: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        select:focus, input:focus { 
+            border-color: var(--accent); 
+            box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.1); 
+            background: rgba(0, 0, 0, 0.6);
+        }
+        
+        select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+        }
+        
+        button { 
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.1), rgba(0, 195, 255, 0.05));
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            font-weight: 600; 
+            cursor: pointer;
+            margin-bottom: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-radius: 8px;
+        }
+        
+        button:hover:not(:disabled) { 
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(0, 195, 255, 0.1));
+            border-color: var(--accent);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.2); 
+            transform: translateY(-1px);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(1);
+        }
+
+        button.btn-danger { 
+            background: linear-gradient(135deg, rgba(244, 63, 94, 0.1), rgba(225, 29, 72, 0.05));
+            border-color: rgba(244, 63, 94, 0.3); 
+            color: #fca5a5; 
+        }
+        button.btn-danger:hover:not(:disabled) { 
+            background: linear-gradient(135deg, rgba(244, 63, 94, 0.2), rgba(225, 29, 72, 0.1));
+            border-color: #f43f5e; 
+            color: #fff; 
+            box-shadow: 0 0 20px rgba(244, 63, 94, 0.2); 
+        }
+
+        /* Connection Status */
+        .status-wrapper {
+            display: flex;
+            align-items: center;
+            background: rgba(0,0,0,0.3);
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.05);
+            margin-bottom: 10px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 12px;
+            position: relative;
+        }
+        
+        .status-connected { 
+            background: #10b981; 
+            box-shadow: 0 0 10px #10b981; 
+        }
+        .status-connected::after {
+            content: '';
+            position: absolute;
+            top: -4px; left: -4px;
+            right: -4px; bottom: -4px;
+            border-radius: 50%;
+            border: 1px solid #10b981;
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+
+        .status-disconnected { 
+            background: #f43f5e; 
+            box-shadow: 0 0 10px #f43f5e; 
+        }
+
+        @keyframes pulse-ring {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            100% { transform: scale(2.5); opacity: 0; }
+        }
+
+        /* Stat Cards */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-card:hover { 
+            transform: translateY(-2px); 
+            border-color: rgba(255,255,255,0.15); 
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+        }
+
+        .stat-value { 
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.6rem; 
+            font-weight: 700; 
+            margin: 6px 0 0 0; 
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+        }
+        
+        .stat-label { 
+            font-size: 0.75rem; 
+            color: var(--text-muted); 
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+        
+        /* Hospital Progress Bars */
+        #hospitals-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .hospital-card {
+            background: rgba(0,0,0,0.2);
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .hospital-name { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-bottom: 10px; 
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .progress-bar {
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: #10b981;
+            width: 0%;
+            border-radius: 10px;
+            transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.8s ease;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        /* Event Log */
+        .event-log {
+            flex-grow: 1;
+            background: rgba(0,0,0,0.4);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.05);
+            padding: 14px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        
+        .log-entry {
+            padding: 8px 10px;
+            border-left: 3px solid var(--accent);
+            background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+            border-radius: 0 4px 4px 0;
+            animation: slideIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            color: rgba(255,255,255,0.8);
+            line-height: 1.4;
+        }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(15px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        /* Tooltip */
+        #tooltip {
+            position: absolute;
+            background: rgba(13, 18, 30, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 240, 255, 0.4);
+            padding: 12px 16px;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.85rem;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 100;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 240, 255, 0.1);
+            line-height: 1.5;
+        }
+
+        #tooltip strong {
+            color: var(--accent);
+            font-size: 0.95rem;
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+
+        /* Overload Warning Overlay */
+        #overload-warning {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(244, 63, 94, 0.05);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.8s;
+            z-index: 5;
+            box-shadow: inset 0 0 150px rgba(244, 63, 94, 0.3);
+        }
+
+        .chart-container {
+            height: 160px;
+            margin-top: 5px;
+            margin-bottom: 20px;
+        }
+
+        /* Checkbox styling */
+        input[type="checkbox"] {
+            width: auto;
+            margin-right: 8px;
+            accent-color: var(--accent);
+            cursor: pointer;
+        }
+
+        /* Utility classes */
+        .flex-row {
+            display: flex;
+            gap: 12px;
+            margin-top: 15px;
+        }
+        
+        .flex-1 { flex: 1; }
+        
+        .timer-title {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Left Panel: Controls -->
+    <div class="panel left-panel">
+        <h2>Control Center</h2>
+        
+        <div class="status-wrapper">
+            <span id="conn-status-dot" class="status-indicator status-disconnected"></span>
+            <span id="conn-status-text" style="font-size: 0.9rem; font-weight: 500;">Disconnected</span>
+        </div>
+
+        <div class="control-group">
+            <label for="task-select">Scenario Difficulty</label>
+            <select id="task-select">
+                <option value="1">Task 1 (Easy - 40 Victims)</option>
+                <option value="2">Task 2 (Medium - 120 Victims)</option>
+                <option value="3">Task 3 (Hard - 240 Victims)</option>
+            </select>
+        </div>
+
+        <div class="flex-row" style="flex-direction: column; gap: 8px;">
+            <button id="btn-reset">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                Reset Environment (R)
+            </button>
+            <button id="btn-step">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Run Single Step (Space)
+            </button>
+        </div>
+        
+        <div class="flex-row">
+            <button id="btn-autorun" class="flex-1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                Auto-Run (A)
+            </button>
+            <button id="btn-pause" class="btn-danger flex-1" disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                Pause
+            </button>
+        </div>
+
+        <!-- Hidden API Endpoint Configuration to maintain logic while hiding for live view -->
+        <div class="control-group" style="display: none;">
+            <label>API Endpoint</label>
+            <input type="text" id="api-url" value="http://localhost:8000" style="width: 100%; padding: 8px; background: #000; border: 1px solid #333; color: #fff; box-sizing: border-box;" />
+        </div>
+
+        <div class="control-group" style="margin-top: 15px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+            <label style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 0; cursor: pointer; color: var(--text-main);">
+                <input type="checkbox" id="toggle-heatmap"> 
+                Show Severity Heatmap
+            </label>
+        </div>
+    </div>
+
+    <!-- Main Map Area -->
+    <div class="main-canvas-container">
+        <div class="top-bar">
+            <div class="timer-title">Simulation Time</div>
+            <div id="tick-counter" style="font-family: 'JetBrains Mono', monospace; font-size: 2rem; color: var(--accent); font-weight: 700; text-shadow: 0 0 10px rgba(0, 240, 255, 0.5);">T-00:00</div>
+            <div id="golden-hour" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500; margin-top: 4px;">Golden Hour: -- min left</div>
+        </div>
+        
+        <div id="overload-warning"></div>
+        <canvas id="simCanvas"></canvas>
+        <div id="tooltip"></div>
+    </div>
+
+    <!-- Right Panel: Metrics -->
+    <div class="panel right-panel">
+        <h2>Live Metrics</h2>
+        
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total / Trapped</div>
+                <div class="stat-value" id="stat-total" style="color: #fff;">0 / 0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Live Score</div>
+                <div class="stat-value" id="stat-score" style="color: var(--accent);">0.0%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Treated (Life Saved)</div>
+                <div class="stat-value" id="stat-treated" style="color: #22c55e;">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Deceased (Black)</div>
+                <div class="stat-value" id="stat-dead" style="color: #ef4444;">0</div>
+            </div>
+        </div>
+
+        <h3>Hospital Utilization</h3>
+        <div id="hospitals-container">
+            <!-- Dynamically populated -->
+        </div>
+
+        <h3>Score History</h3>
+        <div class="chart-container">
+            <canvas id="scoreChart"></canvas>
+        </div>
+
+        <h3>Live Event Log</h3>
+        <div class="event-log" id="event-log">
+            <!-- Dynamically populated -->
+            <div class="log-entry">System instantiated. Awaiting initialization.</div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================
+        //  Global Simulation State & Constants
+        // =========================================================
+        const STATE = {
+            step: 0,
+            victims: [],
+            hospitals: [],
+            teams: [],
+            score: 0.0,
+            isRunning: false,
+            autoRunInterval: null,
+            isConnected: false
+        };
+
+        const CONFIG = {
+            POLL_RATE_MS: 1500,
+            CANVAS_WIDTH: 800,
+            CANVAS_HEIGHT: 600,
+            CITY_SEED: 42 // For pseudo-random stable locations
+        };
+
+        // Pseudo-random generator for stable coordinate mapping
+        function pseudoRandom(seed) {
+            let value = seed;
+            return function() {
+                value = (value * 9301 + 49297) % 233280;
+                return value / 233280;
+            };
+        }
+
+        // Generate stable (x,y) locations for entities since API might not provide them
+        const locationMap = new Map();
+        function getEntityLocation(entityType, id, total) {
+            const key = `${entityType}_${id}`;
+            if (locationMap.has(key)) return locationMap.get(key);
+            
+            const rand = pseudoRandom(id * 1337 + (entityType==='hospital'? 1 : 2));
+            
+            let x, y;
+            if (entityType === 'hospital') {
+                // Distribute hospitals around edges
+                const angle = (id / total) * Math.PI * 2;
+                const r = Math.min(CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT) / 2 * 0.8;
+                x = CONFIG.CANVAS_WIDTH/2 + Math.cos(angle) * r;
+                y = CONFIG.CANVAS_HEIGHT/2 + Math.sin(angle) * r;
+            } else {
+                // Cluster victims in the center (collapse zone)
+                const angle = rand() * Math.PI * 2;
+                const r = rand() * rand() * (Math.min(CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT) / 2 * 0.5);
+                x = CONFIG.CANVAS_WIDTH/2 + Math.cos(angle) * r;
+                y = CONFIG.CANVAS_HEIGHT/2 + Math.sin(angle) * r;
+            }
+            
+            const loc = { x, y };
+            locationMap.set(key, loc);
+            return loc;
+        }
+
+        // =========================================================
+        //  class APIClient — all fetch calls to backend
+        // =========================================================
+        class APIClient {
+            static getBaseUrl() {
+                return document.getElementById('api-url').value.replace(/\/$/, '');
+            }
+
+            static async checkHealth() {
+                try {
+                    const res = await fetch(`${this.getBaseUrl()}/health`);
+                    const ok = res.status === 200;
+                    this.updateStatus(ok);
+                    return ok;
+                } catch {
+                    this.updateStatus(false);
+                    return false;
+                }
+            }
+
+            static updateStatus(isConnected) {
+                STATE.isConnected = isConnected;
+                const dot = document.getElementById('conn-status-dot');
+                const text = document.getElementById('conn-status-text');
+                if (isConnected) {
+                    dot.className = 'status-indicator status-connected';
+                    text.textContent = 'Connected (Live)';
+                } else {
+                    dot.className = 'status-indicator status-disconnected';
+                    text.textContent = 'Disconnected';
+                }
+            }
+
+            static async reset(taskId) {
+                try {
+                    const res = await fetch(`${this.getBaseUrl()}/reset`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ task: parseInt(taskId) })
+                    });
+                    if (!res.ok) throw new Error("Reset failed");
+                    const data = await res.json();
+                    locationMap.clear(); // Clear locations on reset
+                    return data.state;
+                } catch (e) {
+                    console.error(e);
+                    EventLogger.log(`Error: API Connection Failed.`, 'red');
+                    return null;
+                }
+            }
+
+            static async step() {
+                try {
+                    // Empty directives -> AutoAgent handles it on the backend
+                    const res = await fetch(`${this.getBaseUrl()}/step`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ directives: [] })
+                    });
+                    if (!res.ok) throw new Error("Step failed");
+                    return await res.json();
+                } catch (e) {
+                    console.error(e);
+                    return null;
+                }
+            }
+
+            static async fetchState() {
+                try {
+                    const res = await fetch(`${this.getBaseUrl()}/state`);
+                    return res.ok ? await res.json() : null;
+                } catch { return null; }
+            }
+
+            static async fetchGrade() {
+                try {
+                    const res = await fetch(`${this.getBaseUrl()}/grade`);
+                    return res.ok ? await res.json() : null;
+                } catch { return null; }
+            }
+        }
+
+        // =========================================================
+        //  class MapRenderer — Canvas drawing logic
+        // =========================================================
+        class MapRenderer {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
+                // Track objects for interaction
+                this.hospitals = [];
+                this.victims = [];
+                this.ambulances = [];
+                
+                // Interaction
+                this.tooltip = document.getElementById('tooltip');
+                this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+            }
+
+            resizeCanvas() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                // Make it square or fit the container
+                CONFIG.CANVAS_WIDTH = rect.width;
+                CONFIG.CANVAS_HEIGHT = rect.height - 80; // account for top bar
+                this.canvas.width = CONFIG.CANVAS_WIDTH;
+                this.canvas.height = CONFIG.CANVAS_HEIGHT;
+            }
+
+            drawGrid() {
+                this.ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                this.ctx.lineWidth = 1;
+                const gs = 40; // grid size
+                for(let x=0; x<this.canvas.width; x+=gs) {
+                    this.ctx.beginPath(); this.ctx.moveTo(x,0); this.ctx.lineTo(x,this.canvas.height); this.ctx.stroke();
+                }
+                for(let y=0; y<this.canvas.height; y+=gs) {
+                    this.ctx.beginPath(); this.ctx.moveTo(0,y); this.ctx.lineTo(this.canvas.width,y); this.ctx.stroke();
+                }
+            }
+
+            drawHeatmap() {
+                if (!document.getElementById('toggle-heatmap').checked) return;
+                
+                // Simple radial gradient heatmap at the center
+                const radGrad = this.ctx.createRadialGradient(
+                    this.canvas.width/2, this.canvas.height/2, 0,
+                    this.canvas.width/2, this.canvas.height/2, this.canvas.width*0.4
+                );
+                radGrad.addColorStop(0, 'rgba(239, 68, 68, 0.15)');
+                radGrad.addColorStop(0.5, 'rgba(234, 179, 8, 0.1)');
+                radGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                
+                this.ctx.fillStyle = radGrad;
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+
+            getVictimColor(tag) {
+                switch(tag) {
+                    case 'RED': return {fill: '#ef4444', glow: 'var(--red-glow)'};
+                    case 'YELLOW': return {fill: '#eab308', glow: 'var(--yellow-glow)'};
+                    case 'GREEN': return {fill: '#22c55e', glow: 'var(--green-glow)'};
+                    case 'BLACK': return {fill: '#4b5563', glow: 'transparent'};
+                    default: return {fill: '#e2e8f0', glow: 'rgba(255,255,255,0.5)'}; // Untriaged
+                }
+            }
+
+            render(state, ambulancePositions, timeMs) {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.drawGrid();
+                this.drawHeatmap();
+
+                if (!state || !state.victims) return;
+
+                // Cache for interactions
+                this.victims = state.victims;
+                this.hospitals = state.hospitals;
+                
+                const timePulse = (Math.sin(timeMs / 200) + 1) / 2; // 0 to 1
+
+                // Draw Hospitals
+                const totalHospitals = state.hospitals.length;
+                state.hospitals.forEach(h => {
+                    const loc = getEntityLocation('hospital', h.id, totalHospitals);
+                    h._loc = loc; // Cache for tooltip
+                    
+                    // Capacity Arc
+                    const capacityPct = (h.total_capacity - h.available_beds) / h.total_capacity;
+                    this.ctx.beginPath();
+                    this.ctx.arc(loc.x, loc.y, 25, -Math.PI/2, (-Math.PI/2) + (Math.PI*2 * capacityPct));
+                    this.ctx.lineWidth = 4;
+                    this.ctx.strokeStyle = capacityPct > 0.8 ? '#ef4444' : capacityPct > 0.5 ? '#eab308' : '#22c55e';
+                    this.ctx.stroke();
+
+                    // Hospital Icon Background
+                    this.ctx.beginPath();
+                    this.ctx.arc(loc.x, loc.y, 20, 0, Math.PI*2);
+                    this.ctx.fillStyle = '#1e293b';
+                    this.ctx.fill();
+                    
+                    // Icon
+                    this.ctx.font = '20px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    this.ctx.fillText('🏥', loc.x, loc.y);
+                });
+
+                // Draw Victims
+                const totalVictims = state.victims.length;
+                state.victims.forEach(v => {
+                    // Skip if transported
+                    if (v.status === 'TRANSPORTED' || v.status === 'AT_HOSPITAL') return;
+                    
+                    const loc = getEntityLocation('victim', v.id, totalVictims);
+                    v._loc = loc;
+
+                    const colors = this.getVictimColor(v.assigned_tag);
+                    const isRed = v.assigned_tag === 'RED';
+                    const radius = isRed ? 6 : 4;
+
+                    this.ctx.beginPath();
+                    this.ctx.arc(loc.x, loc.y, radius, 0, Math.PI*2);
+                    this.ctx.fillStyle = colors.fill;
+                    
+                    if (v.assigned_tag && v.assigned_tag !== 'BLACK') {
+                        this.ctx.shadowBlur = isRed ? 15 + (10 * timePulse) : 10;
+                        this.ctx.shadowColor = colors.glow;
+                    } else {
+                        this.ctx.shadowBlur = 0;
+                    }
+                    
+                    this.ctx.fill();
+                    this.ctx.shadowBlur = 0; // reset
+                });
+
+                // Draw Ambulances
+                ambulancePositions.forEach(amb => {
+                    amb._loc = amb.pos;
+                    this.ctx.font = '18px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.textBaseline = 'middle';
+                    
+                    if (amb.transport_victim !== null) {
+                        this.ctx.shadowBlur = 10;
+                        this.ctx.shadowColor = 'rgba(0, 212, 255, 0.8)';
+                    }
+                    this.ctx.fillText('🚑', amb.pos.x, amb.pos.y);
+                    this.ctx.shadowBlur = 0;
+                });
+            }
+
+            handleMouseMove(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const my = e.clientY - rect.top;
+                
+                let found = null;
+
+                // Check Hospitals (radius 25)
+                for (const h of this.hospitals) {
+                    if (!h._loc) continue;
+                    const dx = mx - h._loc.x; const dy = my - h._loc.y;
+                    if (Math.sqrt(dx*dx + dy*dy) < 25) {
+                        found = { type: 'hospital', data: h };
+                        break;
+                    }
+                }
+
+                // Check Victims (radius 10 for ease of clicking)
+                if (!found) {
+                    for (const v of this.victims) {
+                        if (!v._loc || v.status === 'TRANSPORTED' || v.status === 'AT_HOSPITAL') continue;
+                        const dx = mx - v._loc.x; const dy = my - v._loc.y;
+                        if (Math.sqrt(dx*dx + dy*dy) < 10) {
+                            found = { type: 'victim', data: v };
+                            break;
+                        }
+                    }
+                }
+
+                if (found) {
+                    this.canvas.style.cursor = 'pointer';
+                    this.tooltip.style.opacity = 1;
+                    this.tooltip.style.left = (e.clientX + 15) + 'px';
+                    this.tooltip.style.top = (e.clientY + 15) + 'px';
+                    
+                    if (found.type === 'hospital') {
+                        const h = found.data;
+                        const pct = (((h.total_capacity - h.available_beds) / h.total_capacity) * 100).toFixed(1);
+                        this.tooltip.innerHTML = `
+                            <strong>${h.name}</strong><br>
+                            Trauma Level: ${h.trauma_level}<br>
+                            Capacity: ${h.total_capacity - h.available_beds} / ${h.total_capacity} (${pct}%)
+                        `;
+                    } else if (found.type === 'victim') {
+                        const v = found.data;
+                        const tagColor = this.getVictimColor(v.assigned_tag).fill;
+                        this.tooltip.innerHTML = `
+                            <strong>Victim #${v.id}</strong><br>
+                            Tag: <span style="color:${tagColor}">${v.assigned_tag || 'UNTRIAGED'}</span><br>
+                            Status: ${v.status}<br>
+                            Time Since Injury: ${v.minutes_since_injury.toFixed(1)} min
+                        `;
+                    }
+                } else {
+                    this.canvas.style.cursor = 'crosshair';
+                    this.tooltip.style.opacity = 0;
+                }
+            }
+        }
+
+        // =========================================================
+        //  class AnimationEngine — lerp and loops
+        // =========================================================
+        class AnimationEngine {
+            constructor(renderer) {
+                this.renderer = renderer;
+                this.lastTime = 0;
+                this.ambulancePositions = new Map(); // id -> { pos: {x,y}, target: {x,y} }
+                this.loop = this.loop.bind(this);
+                requestAnimationFrame(this.loop);
+            }
+
+            updateTargets(state) {
+                if (!state || !state.teams) return;
+                
+                const ambs = state.teams.filter(t => t.type === 'AMBULANCE');
+                
+                ambs.forEach(t => {
+                    let targetLoc = { x: CONFIG.CANVAS_WIDTH/2, y: CONFIG.CANVAS_HEIGHT/2 }; // Default center base
+                    
+                    if (t.assigned_location) {
+                        // Backend location e.g., victim_id or hospital_id. We need to infer logic.
+                        // Simple infer: if transport_victim is set, heading to hospital? 
+                        // It's simpler to just determine target based on state heuristics if direct loc isn't provided.
+                        
+                        // Fake mapping based on is_free and transport
+                        if (!t.is_free && t.transport_victim !== null) {
+                            // Find victim transport destination (hospital)
+                            targetLoc = getEntityLocation('hospital', t.assigned_location || 0, state.hospitals.length);
+                        } else if (!t.is_free) {
+                            // Heading to victim
+                            targetLoc = getEntityLocation('victim', t.assigned_location || 0, state.victims.length);
+                        }
+                    }
+
+                    if (!this.ambulancePositions.has(t.id)) {
+                        this.ambulancePositions.set(t.id, { pos: {...targetLoc}, target: targetLoc, ...t });
+                    } else {
+                        const obj = this.ambulancePositions.get(t.id);
+                        obj.target = targetLoc;
+                        obj.transport_victim = t.transport_victim;
+                        obj.is_free = t.is_free;
+                    }
+                });
+            }
+
+            loop(timestamp) {
+                // Lerp logic
+                const ambs = Array.from(this.ambulancePositions.values());
+                ambs.forEach(a => {
+                    a.pos.x += (a.target.x - a.pos.x) * 0.05; // smooth factor
+                    a.pos.y += (a.target.y - a.pos.y) * 0.05;
+                });
+
+                this.renderer.render(STATE.cachedData, ambs, timestamp);
+                requestAnimationFrame(this.loop);
+            }
+        }
+
+        // =========================================================
+        //  class MetricsPanel — DOM updates
+        // =========================================================
+        class MetricsPanel {
+            constructor() {
+                // Chart Setup
+                const ctx = document.getElementById('scoreChart').getContext('2d');
+                this.scoreHistory = [];
+                this.chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: 'Score Track',
+                            data: [],
+                            borderColor: '#00d4ff',
+                            backgroundColor: 'rgba(0, 212, 255, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, max: 1.0, ticks: { color: '#94a3b8' } },
+                            x: { display: false }
+                        }
+                    }
+                });
+            }
+
+            update(state, rootState) {
+                if (!state) return;
+
+                // Update Top bar
+                document.getElementById('tick-counter').textContent = `T-${state.step.toString().padStart(3, '0')}`;
+                document.getElementById('golden-hour').textContent = `Golden Hour: ${state.golden_hour_remaining} min left`;
+
+                if (state.summary) {
+                    document.getElementById('stat-total').textContent = `${state.summary.total_victims} / ${state.summary.trapped}`;
+                    document.getElementById('stat-treated').textContent = state.summary.at_hospital;
+                    document.getElementById('stat-dead').textContent = state.summary.deceased;
+                }
+
+                // Update Hospitals
+                const hContainer = document.getElementById('hospitals-container');
+                hContainer.innerHTML = '';
+                
+                let isOverloaded = false;
+
+                state.hospitals.forEach(h => {
+                    const occPct = ((h.total_capacity - h.available_beds) / h.total_capacity) * 100;
+                    if (occPct >= 80) isOverloaded = true;
+
+                    let color = '#22c55e';
+                    if (occPct > 50) color = '#eab308';
+                    if (occPct > 80) color = '#ef4444';
+
+                    hContainer.innerHTML += `
+                        <div class="hospital-card">
+                            <div class="hospital-name">
+                                <span>${h.name} (Lvl ${h.trauma_level})</span>
+                                <span style="color:${color}">${occPct.toFixed(0)}%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${occPct}%; background-color: ${color};"></div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                AlertSystem.checkOverload(isOverloaded);
+            }
+
+            updateScore(gradeData, step) {
+                if (!gradeData) return;
+                const score = gradeData.grade || 0;
+                document.getElementById('stat-score').textContent = (score * 100).toFixed(1) + '%';
+                
+                // Chart
+                this.scoreHistory.push(score);
+                this.chart.data.labels.push(step);
+                this.chart.data.datasets[0].data.push(score);
+                
+                // Keep last 50 points
+                if (this.chart.data.labels.length > 50) {
+                    this.chart.data.labels.shift();
+                    this.chart.data.datasets[0].data.shift();
+                }
+                this.chart.update();
+            }
+        }
+
+        // =========================================================
+        //  class EventLogger
+        // =========================================================
+        class EventLogger {
+            static log(message, colorClass = '') {
+                const log = document.getElementById('event-log');
+                const time = new Date().toLocaleTimeString([], {hour12: false});
+                const colorHtml = colorClass ? `color: ${colorClass}` : '';
+                
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                entry.innerHTML = `<span style="color:var(--text-muted)">[${time}]</span> <span style="${colorHtml}">${message}</span>`;
+                
+                log.insertBefore(entry, log.firstChild);
+                
+                // Keep only last 20
+                if (log.children.length > 20) {
+                    log.removeChild(log.lastChild);
+                }
+            }
+        }
+
+        // =========================================================
+        //  class AlertSystem
+        // =========================================================
+        class AlertSystem {
+            static checkOverload(isOverloaded) {
+                const overlay = document.getElementById('overload-warning');
+                if (isOverloaded) {
+                    overlay.style.opacity = 1;
+                    if (!this.warned) {
+                        EventLogger.log('⚠️ SYSTEM ALERT: Hospital capacity critical.', 'red');
+                        this.warned = true;
+                    }
+                } else {
+                    overlay.style.opacity = 0;
+                    this.warned = false;
+                }
+            }
+        }
+        AlertSystem.warned = false;
+
+        // =========================================================
+        //  class ControlPanel — Logic and Bindings
+        // =========================================================
+        class ControlPanel {
+            constructor(animationEngine, metricsPanel) {
+                this.animEngine = animationEngine;
+                this.metricsPanel = metricsPanel;
+
+                // Bind elements
+                this.btnReset = document.getElementById('btn-reset');
+                this.btnStep = document.getElementById('btn-step');
+                this.btnAutorun = document.getElementById('btn-autorun');
+                this.btnPause = document.getElementById('btn-pause');
+                this.taskSelect = document.getElementById('task-select');
+
+                this.btnReset.addEventListener('click', () => this.handleReset());
+                this.btnStep.addEventListener('click', () => this.handleStep());
+                this.btnAutorun.addEventListener('click', () => this.toggleAutoRun(true));
+                this.btnPause.addEventListener('click', () => this.toggleAutoRun(false));
+
+                // Keyboard shortcuts
+                window.addEventListener('keydown', (e) => {
+                    if(document.activeElement.tagName === 'INPUT') return;
+                    if(e.key.toLowerCase() === 'r') this.handleReset();
+                    if(e.key === ' ') { e.preventDefault(); this.handleStep(); }
+                    if(e.key.toLowerCase() === 'a') this.toggleAutoRun(!STATE.isRunning);
+                });
+
+                // Init Poll
+                setInterval(() => this.healthPoll(), 3000);
+            }
+
+            async healthPoll() {
+                const isOp = await APIClient.checkHealth();
+                // If running on backend natively, sync state
+                if (isOp && !STATE.isRunning && STATE.cachedData) {
+                    const curState = await APIClient.fetchState();
+                    if (curState && curState.step > STATE.step) {
+                        this.syncState(curState);
+                    }
+                }
+            }
+
+            async handleReset() {
+                EventLogger.log(`Resetting simulation to Task ${this.taskSelect.value}...`);
+                const newState = await APIClient.reset(this.taskSelect.value);
+                if (newState) {
+                    this.metricsPanel.scoreHistory = [];
+                    this.metricsPanel.chart.data.labels = [];
+                    this.metricsPanel.chart.data.datasets[0].data = [];
+                    this.syncState(newState);
+                    EventLogger.log(`Simulation initialized successfully.`, '#22c55e');
+                }
+            }
+
+            async handleStep() {
+                this.btnStep.disabled = true;
+                const result = await APIClient.step();
+                if (result) {
+                    this.syncState(result.state);
+                    if (result.done) {
+                        EventLogger.log(`Simulation Complete! Final Actions taken.`, '#00d4ff');
+                        this.toggleAutoRun(false);
+                    } else {
+                        EventLogger.log(`[Step ${result.state.step}] Directives executed.`);
+                    }
+                }
+                this.btnStep.disabled = false;
+            }
+
+            async syncState(data) {
+                STATE.step = data.step;
+                STATE.cachedData = data;
+                
+                this.animEngine.updateTargets(data);
+                this.metricsPanel.update(data, STATE);
+                
+                const gradeInfo = await APIClient.fetchGrade();
+                this.metricsPanel.updateScore(gradeInfo, data.step);
+            }
+
+            toggleAutoRun(active) {
+                if (active) {
+                    STATE.isRunning = true;
+                    this.btnAutorun.disabled = true;
+                    this.btnPause.disabled = false;
+                    this.btnStep.disabled = true;
+                    EventLogger.log(`Auto-run engaged. Polling every ${CONFIG.POLL_RATE_MS}ms.`, '#eab308');
+                    
+                    STATE.autoRunInterval = setInterval(async () => {
+                        const result = await APIClient.step();
+                        if(result) {
+                            this.syncState(result.state);
+                            if(result.done) this.toggleAutoRun(false);
+                        }
+                    }, CONFIG.POLL_RATE_MS);
+                } else {
+                    STATE.isRunning = false;
+                    this.btnAutorun.disabled = false;
+                    this.btnPause.disabled = true;
+                    this.btnStep.disabled = false;
+                    clearInterval(STATE.autoRunInterval);
+                    EventLogger.log(`Auto-run paused.`);
+                }
+            }
+        }
+
+        // =========================================================
+        //  Startup
+        // =========================================================
+        window.onload = async () => {
+            // If this page is served from the Flask backend (http://.../dashboard),
+            // use same-origin API base URL to avoid CORS/file:// restrictions.
+            const apiUrlInput = document.getElementById('api-url');
+            if (apiUrlInput && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
+                apiUrlInput.value = window.location.origin;
+            }
+
+            const renderer = new MapRenderer('simCanvas');
+            const animEngine = new AnimationEngine(renderer);
+            const metricsPanel = new MetricsPanel();
+            const controlPanel = new ControlPanel(animEngine, metricsPanel);
+            
+            // Auto layout fixes on load
+            renderer.resizeCanvas();
+            
+            // Attempt initial health check and state load
+            const ok = await APIClient.checkHealth();
+            if (ok) {
+                const state = await APIClient.fetchState();
+                if (state && !state.error) {
+                    controlPanel.syncState(state);
+                    EventLogger.log('Connected to existing backend instance.', '#22c55e');
+                } else {
+                    EventLogger.log('Connected to backend. Press Reset to initialize.', '#22c55e');
+                }
+            } else {
+                EventLogger.log('Cannot connect to backend. Is Flask running on port 8000?', 'red');
+            }
+        };
+
+    </script>
+</body>
+</html>
