@@ -87,7 +87,7 @@ The golden hour = **60 steps**. After step 60, survival probability decays expon
 ![Dashboard Start](start.png)
 *Step 0/120 — All 40 victims trapped, 8/8 ambulances ready, 140 beds free*
 
-![Dashboard Running](test.png)
+![Dashboard Running](traking.png)
 *Step 32/120 — 55.3% performance score, 21 saved, 7 in transit*
 
 ![Simulation Map](live.png)
