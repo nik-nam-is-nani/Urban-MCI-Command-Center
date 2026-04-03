@@ -1,3 +1,12 @@
+---
+title: Urban MCI Command Center
+emoji: 🚑
+colorFrom: red
+colorTo: orange
+sdk: docker
+app_file: app.py
+pinned: false
+---
 # 🚑 Urban MCI Command Center
 
 <div align="center">
