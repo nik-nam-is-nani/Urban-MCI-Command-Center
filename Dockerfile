@@ -24,11 +24,14 @@ COPY inference.py .
 COPY openenv.yaml .
 COPY README.md .
 
+# ✅ FIXED: Copy dashboard static files
+COPY dashboard/ ./dashboard/
+
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 
 # Expose port for API
-EXPOSE 8000
+EXPOSE 7860
 
-# Run API server (NOT inference script)
+# Run API server
 CMD ["python", "app.py"]
