@@ -8,10 +8,11 @@ sdk: docker
 app_port: 7860
 pinned: false
 tags:
-* openenv
-* reinforcement-learning
-* emergency-response
-* simulation
+
+- openenv
+- reinforcement-learning
+- emergency-response
+- simulation
 
 ---
 
