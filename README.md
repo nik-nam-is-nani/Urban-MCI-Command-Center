@@ -84,13 +84,13 @@ The golden hour = **60 steps**. After step 60, survival probability decays expon
 
 ## 🖥️ Dashboard
 
-![Dashboard Start](assets/dashboard-start.png)
+![Dashboard Start](start.png)
 *Step 0/120 — All 40 victims trapped, 8/8 ambulances ready, 140 beds free*
 
-![Dashboard Running](assets/dashboard-running.png)
+![Dashboard Running](test.png)
 *Step 32/120 — 55.3% performance score, 21 saved, 7 in transit*
 
-![Simulation Map](assets/simulation-map.png)
+![Simulation Map](live.png)
 *Live 200×200 map — color-coded victims, ambulance routes, incident core*
 
 The command center ships with a real-time web dashboard showing live simulation state:
