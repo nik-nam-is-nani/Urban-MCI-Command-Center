@@ -1,21 +1,18 @@
 ---
-
 title: Urban MCI Command Center
 emoji: 🚑
 colorFrom: red
 colorTo: orange
 sdk: docker
-app_port: 7860
-pinned: false
+app_port: 8000
 tags:
-
-- openenv
-- reinforcement-learning
-- emergency-response
-- simulation
-
+  - openenv
+  - emergency-response
+  - reinforcement-learning
+  - healthcare
+  - triage
+license: mit
 ---
-
 # Urban Mass Casualty Incident (MCI) Command Environment
 
 ## Problem #15 — Live Incident Command Agent
