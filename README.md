@@ -13,7 +13,7 @@
 **A high-fidelity reinforcement learning environment for AI-assisted disaster response.**  
 Train agents to command mass casualty incidents in real time — triage, dispatch, coordinate, survive.
 
-[🚀 Quick Start](#-quick-start) · [🎮 Live Demo](#-dashboard) · [📊 Benchmarks](#-benchmarks) · [📖 Docs](#-observation-space)
+
 
 </div>
 
