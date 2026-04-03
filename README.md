@@ -5,6 +5,7 @@ colorFrom: red
 colorTo: orange
 sdk: docker
 app_file: app.py
+app_port: 7860
 pinned: false
 ---
 # 🚑 Urban MCI Command Center
