@@ -18,7 +18,7 @@ Endpoints:
 
 import os
 import json
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask import send_from_directory
 from flask_cors import CORS
 
@@ -374,10 +374,26 @@ def health():
     })
 
 
+def _serve_dashboard_page(filename: str = "index.html"):
+    """Serve dashboard HTML with no-cache headers for live updates."""
+    response = make_response(send_from_directory(_DASHBOARD_DIR, filename))
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
+@app.route('/', methods=['GET'])
+def root_dashboard():
+    """Serve dashboard at root for HuggingFace Spaces."""
+    return _serve_dashboard_page("index.html")
+
+
 @app.route('/dashboard', methods=['GET'])
+@app.route('/dashboard/', methods=['GET'])
 def dashboard():
     """Serve the static HTML dashboard (dashboard/index.html)."""
-    return send_from_directory(_DASHBOARD_DIR, "index.html")
+    return _serve_dashboard_page("index.html")
 
 
 if __name__ == '__main__':
