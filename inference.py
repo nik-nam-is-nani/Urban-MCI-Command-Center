@@ -4,7 +4,7 @@ Inference Script for Urban MCI Command Center
 MANDATORY stdout format:
   [START] task=<task_name> env=<benchmark> model=<model_name>
   [STEP]  step=<n> action=<action_str> reward=<0.00> done=<true|false> error=<msg|null>
-  [END]   success=<true|false> steps=<n> rewards=<r1,r2,...,rn>
+  [END]   success=<true|false> steps=<n> score=<score> rewards=<r1,r2,...,rn>
 """
 
 import os
@@ -23,14 +23,28 @@ from urban_mci_env import (
     grade,
 )
 
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+API_KEY = os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 BENCHMARK = "urban-mci-command-center"
 MAX_STEPS = 120
 
+client = OpenAI(
+    base_url=API_BASE_URL,
+    api_key=API_KEY,
+)
+
 
 class HeuristicAgent:
+    """
+    A heuristic agent that follows START triage protocol.
+    Priority order:
+    1. RED victims (immediate) - highest priority, fastest transport
+    2. YELLOW victims (delayed) - second priority
+    3. GREEN victims (minor) - transport when capacity available
+    4. BLACK victims (expectant) - do not transport
+    """
+
     def __init__(self, env: UrbanMCIEnv):
         self.env = env
 
@@ -39,6 +53,7 @@ class HeuristicAgent:
         directives.extend(self._triage_victims(state))
         directives.extend(self._dispatch_ambulances(state))
         directives.extend(self._assign_sar_teams(state))
+        directives.extend(self._assign_fire_teams(state))
         return IncidentAction(directives=directives)
 
     def _triage_victims(self, state: Dict) -> List[Dict]:
@@ -112,6 +127,9 @@ class HeuristicAgent:
             directives.append({"type": "assign_sar", "team_id": sar["id"], "victim_id": victim["id"]})
         return directives
 
+    def _assign_fire_teams(self, state: Dict) -> List[Dict]:
+        return []
+
 
 def run_task(task: int) -> None:
     task_name = f"task-{task}"
@@ -150,7 +168,7 @@ def run_task(task: int) -> None:
 
             print(
                 f"[STEP] step={step} action={action_str} reward={reward:.2f} done={done_str} error={error_str}",
-                flush=True
+                flush=True,
             )
 
             if done:
@@ -160,13 +178,13 @@ def run_task(task: int) -> None:
         last_error = str(e).replace("\n", " ")
 
     finally:
-        final_grade = grade(env)
-        success = final_grade > 0.0
+        final_score = grade(env)
+        success = final_score > 0.0
         rewards_str = ",".join(f"{r:.2f}" for r in rewards_log)
         success_str = "true" if success else "false"
         print(
-            f"[END] success={success_str} steps={step_count} rewards={rewards_str}",
-            flush=True
+            f"[END] success={success_str} steps={step_count} score={final_score:.2f} rewards={rewards_str}",
+            flush=True,
         )
 
 
@@ -177,3 +195,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
