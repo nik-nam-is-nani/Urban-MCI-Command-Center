@@ -17,6 +17,7 @@ Endpoints:
 """
 
 import os
+import json
 from flask import Flask, request, jsonify
 from flask import send_from_directory
 from flask_cors import CORS
@@ -34,6 +35,30 @@ _DASHBOARD_DIR = os.path.join(os.path.dirname(__file__), "dashboard")
 # Global environment state
 env = None
 current_task = 1
+
+
+def get_json_body():
+    """
+    Safely parse request JSON without triggering Flask 415 errors when
+    Content-Type is missing or incorrect.
+    """
+    data = request.get_json(silent=True)
+    if isinstance(data, dict):
+        return data
+
+    raw = request.get_data(as_text=True) or ""
+    if raw.strip():
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+
+    if request.form:
+        return request.form.to_dict(flat=True)
+
+    return {}
 
 
 def create_env():
@@ -194,11 +219,15 @@ agent = None
 def reset():
     """Reset the environment."""
     global current_task, agent
-    
-    # Get task from request body or query params
-    task = request.json.get('task') if request.json else None
+
+    body = get_json_body()
+    task = body.get('task')
     if task is None:
         task = request.args.get('task', default=1, type=int)
+    try:
+        task = int(task)
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid task. Use 1, 2, or 3."}), 400
 
     if task not in (1, 2, 3):
         return jsonify({"error": "Invalid task. Use 1, 2, or 3."}), 400
@@ -224,9 +253,10 @@ def step():
     if env is None:
         return jsonify({"error": "Environment not initialized. Call /reset first."}), 400
     
-    directives = []
-    if request.json and 'directives' in request.json:
-        directives = request.json['directives']
+    body = get_json_body()
+    directives = body.get('directives', []) if body else []
+    if not isinstance(directives, list):
+        directives = []
     
     # If no directives provided, use auto-agent
     if not directives and agent:

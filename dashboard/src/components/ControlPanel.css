@@ -197,8 +197,37 @@
   color: var(--accent-red);
 }
 
+.mini-btn.send {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.14);
+  color: var(--accent-green);
+}
+
 .mini-btn:disabled {
   opacity: 0.45;
+}
+
+.quick-triage-row {
+  display: flex;
+  gap: 8px;
+}
+
+.mini-btn.quick-red {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.13);
+  color: #fda4af;
+}
+
+.mini-btn.quick-yellow {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.14);
+  color: #fcd34d;
+}
+
+.mini-btn.quick-green {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.14);
+  color: #86efac;
 }
 
 .check-row {

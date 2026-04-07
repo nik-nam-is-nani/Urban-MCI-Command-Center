@@ -4,6 +4,7 @@ import './ControlPanel.css';
 function ControlPanel({
   tasks,
   currentTask,
+  state,
   onReset,
   onStep,
   onAutoRunToggle,
@@ -94,14 +95,54 @@ function ControlPanel({
 
   const handleStepClick = async () => {
     try {
-      const payload = customDirectives.length > 0 ? customDirectives : [];
-      const result = await onStep(payload);
-      if (result && payload.length > 0 && !keepQueue) {
-        setCustomDirectives([]);
-      }
+      await onStep([]);
     } catch {
       // App-level error banner already handles request failures.
     }
+  };
+
+  const handleSendQueue = async () => {
+    try {
+      if (customDirectives.length === 0) {
+        setDirectiveError('Queue is empty. Add directives first.');
+        return;
+      }
+      const result = await onStep(customDirectives);
+      if (result && !keepQueue) {
+        setCustomDirectives([]);
+      }
+      setDirectiveError('');
+    } catch {
+      // App-level error banner already handles request failures.
+    }
+  };
+
+  const queueQuickTriage = (tagValue) => {
+    const victims = state?.victims || [];
+    if (!Array.isArray(victims) || victims.length === 0) {
+      setDirectiveError('State not loaded yet. Reset first.');
+      return;
+    }
+
+    const untriaged = victims.filter(
+      (v) =>
+        (v.status === 'TRAPPED' || v.status === 'TRIAGED') &&
+        (v.assigned_tag === null || v.assigned_tag === undefined)
+    );
+
+    if (untriaged.length === 0) {
+      setDirectiveError('No untriaged victims found.');
+      return;
+    }
+
+    const newDirectives = untriaged.map((v) => ({
+      type: 'triage',
+      victim_id: Number(v.id),
+      tag: Number(tagValue),
+    }));
+
+    setCustomDirectives((prev) => [...prev, ...newDirectives]);
+    setDirectiveError('');
   };
 
   const updateAutoRunInterval = (value) => {
@@ -161,7 +202,7 @@ function ControlPanel({
               onClick={handleStepClick}
               disabled={isLoading || isAutoRunning}
             >
-              {customDirectives.length > 0 ? `Step (${customDirectives.length})` : 'Step'}
+              Auto Step
             </button>
 
             <button
@@ -260,6 +301,13 @@ function ControlPanel({
                 Add Directive
               </button>
               <button
+                className="mini-btn send"
+                onClick={handleSendQueue}
+                disabled={isLoading || isAutoRunning || customDirectives.length === 0}
+              >
+                Send Queue
+              </button>
+              <button
                 className="mini-btn clear"
                 onClick={clearQueue}
                 disabled={isLoading || isAutoRunning || customDirectives.length === 0}
@@ -298,6 +346,33 @@ function ControlPanel({
                 </div>
               ))
             )}
+          </div>
+
+          <div className="custom-row">
+            <label className="field-label">Quick Triage - All Untriaged</label>
+            <div className="quick-triage-row">
+              <button
+                className="mini-btn quick-red"
+                onClick={() => queueQuickTriage(1)}
+                disabled={isLoading || isAutoRunning}
+              >
+                All -> RED
+              </button>
+              <button
+                className="mini-btn quick-yellow"
+                onClick={() => queueQuickTriage(2)}
+                disabled={isLoading || isAutoRunning}
+              >
+                All -> YELLOW
+              </button>
+              <button
+                className="mini-btn quick-green"
+                onClick={() => queueQuickTriage(3)}
+                disabled={isLoading || isAutoRunning}
+              >
+                All -> GREEN
+              </button>
+            </div>
           </div>
 
           <div className="custom-row">
