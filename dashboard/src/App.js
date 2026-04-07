@@ -221,6 +221,7 @@ function App() {
           <ControlPanel
             tasks={tasks}
             currentTask={currentTask}
+            state={state}
             onReset={handleReset}
             onStep={handleStep}
             onAutoRunToggle={handleAutoRunToggle}
