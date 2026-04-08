@@ -386,10 +386,16 @@ def _serve_dashboard_page(filename: str = "index.html"):
 @app.route('/static/<path:path>', methods=['GET'])
 def serve_static(path):
     """Serve static assets (CSS, JS, etc.)."""
+    static_dir = os.path.join(_DASHBOARD_DIR, 'static')
+    full_path = os.path.join(static_dir, path)
+    print(f"[STATIC] Request: {path}")
+    print(f"[STATIC] Full path: {full_path}")
+    print(f"[STATIC] Exists: {os.path.exists(full_path)}")
     try:
-        return send_from_directory(os.path.join(_DASHBOARD_DIR, 'static'), path)
-    except Exception:
-        return jsonify({"error": "Asset not found"}), 404
+        return send_from_directory(static_dir, path)
+    except Exception as e:
+        print(f"[STATIC] Error: {e}")
+        return jsonify({"error": "Asset not found", "path": path}), 404
 
 
 @app.route('/manifest.json', methods=['GET'])
