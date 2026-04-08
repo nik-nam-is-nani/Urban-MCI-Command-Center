@@ -28,12 +28,14 @@ API_KEY = os.getenv("HF_TOKEN")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 BENCHMARK = "urban-mci-command-center"
-MAX_STEPS = 120
+MAX_STEPS = 60  # Reduced from 120 to stay well under 30min limit
+LLM_TIMEOUT_SECONDS = 10  # Timeout per LLM call
 
 client = (
     OpenAI(
         base_url=API_BASE_URL,
         api_key=API_KEY,
+        timeout=LLM_TIMEOUT_SECONDS,
     )
     if API_KEY
     else None
@@ -52,32 +54,50 @@ class HeuristicAgent:
 
     def __init__(self, env: UrbanMCIEnv):
         self.env = env
+        self._llm_failures = 0
+        self._llm_disabled = False  # Disable LLM after too many failures
 
     def act(self, state: Dict) -> IncidentAction:
-        prompt = self._build_prompt(state)
+        """
+        Generate action for current state.
+        Uses LLM with timeout, falls back to heuristic if LLM fails or is slow.
+        After 3 consecutive failures, disables LLM for remainder of episode.
+        """
         directives: List[Dict[str, Any]] = []
 
-        if API_KEY and client is not None:
+        # Use LLM only if not disabled due to repeated failures
+        if API_KEY and client is not None and not self._llm_disabled:
             try:
                 completion = client.chat.completions.create(
                     model=MODEL_NAME,
                     temperature=0,
+                    max_tokens=500,  # Limit response size
                     messages=[
                         {
                             "role": "system",
                             "content": (
                                 "You are an expert disaster response AI. "
-                                "Return only valid JSON."
+                                "Return only valid JSON. Be concise and fast."
                             ),
                         },
-                        {"role": "user", "content": prompt},
+                        {"role": "user", "content": self._build_prompt(state)},
                     ],
+                    timeout=LLM_TIMEOUT_SECONDS,
                 )
                 response_text = self._extract_response_text(completion)
                 payload = self._parse_directives_payload(response_text)
                 directives = self._sanitize_directives(payload, state)
+
+                # Reset failure counter on success
+                self._llm_failures = 0
             except Exception:
+                # LLM failed or timed out - increment failure counter
+                self._llm_failures += 1
                 directives = []
+
+                # Disable LLM after 3 consecutive failures
+                if self._llm_failures >= 3:
+                    self._llm_disabled = True
 
         if not directives:
             directives = self._fallback_directives(state)
@@ -85,60 +105,21 @@ class HeuristicAgent:
         return IncidentAction(directives=directives)
 
     def _build_prompt(self, state: Dict) -> str:
-        return f"""
-You are an expert disaster response AI managing a mass casualty incident.
+        # Compact prompt for faster API response
+        return f"""Expert disaster response AI. Return ONLY valid JSON.
 
-Your goal is to maximize survival by prioritizing:
-1. Critical victims (RED) first
-2. Efficient ambulance usage
-3. Fast rescue of trapped victims
-4. Proper hospital assignment based on severity
+PRIORITIES: 1)RED victims first 2)Use ambulances efficiently 3)Rescue trapped 4)Right hospital
 
--------------------------
-RULES:
-- RED = life-threatening -> highest priority
-- YELLOW = serious but stable
-- GREEN = minor injuries
-- Always triage before dispatch if not tagged
-- Use available teams efficiently
-- Do NOT assign busy teams
-- Prefer nearest or suitable hospitals
--------------------------
+ACTIONS:
+- triage: {{"type":"triage","victim_id":N,"tag":"RED|YELLOW|GREEN"}}
+- dispatch: {{"type":"dispatch","team_id":N,"victim_id":N,"hospital_id":N}}
+- assign_sar: {{"type":"assign_sar","team_id":N,"victim_id":N}}
 
-AVAILABLE ACTION TYPES:
+RULES: Triage before dispatch. Don't use busy teams. RED->trauma center.
 
-1. TRIAGE:
-{{"type": "triage", "victim_id": "<id>", "tag": "RED|YELLOW|GREEN"}}
+STATE:{json.dumps(state, separators=(',', ':'))}
 
-2. DISPATCH AMBULANCE:
-{{"type": "dispatch", "team_id": "<id>", "victim_id": "<id>", "hospital_id": "<id>"}}
-
-3. ASSIGN SEARCH & RESCUE:
-{{"type": "assign_sar", "team_id": "<id>", "victim_id": "<id>"}}
-
--------------------------
-
-STRICT OUTPUT FORMAT:
-- Return ONLY valid JSON
-- NO explanations
-- NO extra text
-- Must be parseable using json.loads()
-
-FORMAT:
-{{
-  "directives": [
-    {{"type": "triage", "victim_id": 1, "tag": "RED"}},
-    {{"type": "dispatch", "team_id": 1, "victim_id": 1, "hospital_id": 1}},
-    {{"type": "assign_sar", "team_id": 2, "victim_id": 2}}
-  ]
-}}
-
--------------------------
-
-CURRENT STATE:
-{json.dumps(state)}
-
-Now decide the best actions.
+Return: {{"directives":[...]}}
 """
 
     def _extract_response_text(self, completion: Any) -> str:
