@@ -29,6 +29,9 @@ environment:
 grading:
   function: grade
   formula: "lives_saved / saveable_victims"
+server:
+  command: "python app.py"
+  port: 7860
 
 tags:
   - openenv
