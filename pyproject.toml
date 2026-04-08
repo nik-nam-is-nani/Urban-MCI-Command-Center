@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-serve = "app:main"
+server = "app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
