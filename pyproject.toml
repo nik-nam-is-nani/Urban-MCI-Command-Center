@@ -6,7 +6,7 @@ build-backend = "setuptools.backends.legacy:build"
 name = "urban-mci-command-center"
 version = "1.0.0"
 description = "Urban Mass Casualty Incident Command Environment"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "flask>=3.0.0",
     "flask-cors>=4.0.0",
