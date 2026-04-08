@@ -1,4 +1,4 @@
-[build-system]
+﻿[build-system]
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.backends.legacy:build"
 
@@ -10,14 +10,12 @@ readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
 dependencies = [
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
     "pydantic>=2.0",
     "pyyaml>=6.0",
-    "fastapi>=0.100.0",
-    "uvicorn>=0.22.0",
+    "gunicorn>=21.2.0",
 ]
-
-[project.optional-dependencies]
-dev = ["pytest"]
 
 [tool.setuptools.packages.find]
 where = ["."]
