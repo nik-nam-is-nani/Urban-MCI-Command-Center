@@ -377,7 +377,7 @@ python urban_mci_env.py
 python inference.py
 
 # Launch interactive dashboard
-python app.py            # → http://localhost:8000
+python app.py            # → http://localhost:7860
 ```
 
 ---
