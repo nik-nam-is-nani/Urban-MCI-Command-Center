@@ -328,6 +328,13 @@ def health():
         "env_initialized": env is not None,
     })
 
+@app.route('/', methods=['GET'])
+def index():
+    return jsonify({
+        "name": "Urban MCI Command Center",
+        "status": "running",
+        "endpoints": ["/reset", "/step", "/state", "/grade", "/health"]
+    }), 200
 
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
