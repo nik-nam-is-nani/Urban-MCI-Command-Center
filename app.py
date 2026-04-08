@@ -330,11 +330,8 @@ def health():
 
 @app.route('/', methods=['GET'])
 def index():
-    return jsonify({
-        "name": "Urban MCI Command Center",
-        "status": "running",
-        "endpoints": ["/reset", "/step", "/state", "/grade", "/health"]
-    }), 200
+    """Serve the dashboard at root path for HuggingFace Spaces."""
+    return send_from_directory(_DASHBOARD_DIR, "index.html")
 
 @app.route('/dashboard', methods=['GET'])
 def dashboard():
