@@ -154,10 +154,10 @@ Requirements include:
 python app.py
 ```
 
-This starts the Flask server on port 8000.
+This starts the Flask server on port 7860.
 You should see:
 ```
-* Running on http://0.0.0.0:8000
+* Running on http://0.0.0.0:7860
 ```
 
 ### Step 3: Install Frontend Dependencies
@@ -228,7 +228,7 @@ To deploy to HuggingFace Spaces:
 docker build -t urban-mci-env .
 
 # Run locally
-docker run -p 8000:8000 urban-mci-env
+docker run -p 7860:7860 urban-mci-env
 ```
 
 The Dockerfile is configured to run `python app.py` (the API server, not inference).
