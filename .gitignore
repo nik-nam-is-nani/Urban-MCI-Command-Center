@@ -4,6 +4,4 @@ __pycache__/
 *.pyo
 .env
 node_modules/
-live.png
-start.png
-tracking.png
+*.png
