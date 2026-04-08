@@ -47,9 +47,9 @@ The dashboard connects to the backend API. Configure the URL:
 
 ```bash
 # Option 1: Environment variable
-export REACT_APP_API_URL=http://localhost:8000
+export REACT_APP_API_URL=http://localhost:7860
 
-# Option 2: The default is http://localhost:8000
+# Option 2: The default is http://localhost:7860
 ```
 
 ## Project Structure
@@ -129,7 +129,7 @@ To run both backend and frontend together:
 1. Build the React app: `cd dashboard && npm run build`
 2. Copy the `build/` folder to serve from Flask, or
 3. Run separately:
-   - Terminal 1: `python app.py` (backend on port 8000)
+   - Terminal 1: `python app.py` (backend on port 7860)
    - Terminal 2: `npm start` (frontend on port 3000)
 
 ## Screenshots

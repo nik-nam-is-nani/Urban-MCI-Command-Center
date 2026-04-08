@@ -563,7 +563,7 @@
         <!-- Hidden API Endpoint Configuration to maintain logic while hiding for live view -->
         <div class="control-group" style="display: none;">
             <label>API Endpoint</label>
-            <input type="text" id="api-url" value="http://localhost:8000" style="width: 100%; padding: 8px; background: #000; border: 1px solid #333; color: #fff; box-sizing: border-box;" />
+            <input type="text" id="api-url" value="http://localhost:7860" style="width: 100%; padding: 8px; background: #000; border: 1px solid #333; color: #fff; box-sizing: border-box;" />
         </div>
 
         <div class="control-group manual-card">
@@ -1579,7 +1579,7 @@
                     EventLogger.log('Connected to backend. Press Reset to initialize.', '#22c55e');
                 }
             } else {
-                EventLogger.log('Cannot connect to backend. Is Flask running on port 8000?', 'red');
+                EventLogger.log('Cannot connect to backend. Is Flask running on port 7860?', 'red');
             }
         };
 

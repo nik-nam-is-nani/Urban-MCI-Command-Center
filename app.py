@@ -30,7 +30,7 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # Optional static dashboard (served from this backend to avoid file:// CORS issues)
-_DASHBOARD_DIR = os.path.join(os.path.dirname(__file__), "dashboard")
+_DASHBOARD_DIR = os.path.join(os.path.dirname(__file__), "dashboard", "build")
 
 # Global environment state
 env = None
@@ -383,6 +383,33 @@ def _serve_dashboard_page(filename: str = "index.html"):
     return response
 
 
+@app.route('/static/<path:path>', methods=['GET'])
+def serve_static(path):
+    """Serve static assets (CSS, JS, etc.)."""
+    try:
+        return send_from_directory(os.path.join(_DASHBOARD_DIR, 'static'), path)
+    except Exception:
+        return jsonify({"error": "Asset not found"}), 404
+
+
+@app.route('/manifest.json', methods=['GET'])
+def serve_manifest():
+    """Serve manifest.json for PWA."""
+    try:
+        return send_from_directory(_DASHBOARD_DIR, 'manifest.json')
+    except Exception:
+        return jsonify({"error": "Manifest not found"}), 404
+
+
+@app.route('/favicon.ico', methods=['GET'])
+def serve_favicon():
+    """Serve favicon."""
+    try:
+        return send_from_directory(_DASHBOARD_DIR, 'favicon.ico')
+    except Exception:
+        return "", 204
+
+
 @app.route('/', methods=['GET'])
 def root_dashboard():
     """Serve dashboard at root for HuggingFace Spaces."""
@@ -392,7 +419,17 @@ def root_dashboard():
 @app.route('/dashboard', methods=['GET'])
 @app.route('/dashboard/', methods=['GET'])
 def dashboard():
-    """Serve the static HTML dashboard (dashboard/index.html)."""
+    """Serve the static HTML dashboard (dashboard/build/index.html)."""
+    return _serve_dashboard_page("index.html")
+
+
+@app.route('/<path:path>', methods=['GET'])
+def catch_all(path):
+    """Catch-all for SPA routing - serve index.html for all unknown routes."""
+    # Serve static files if they exist
+    if os.path.exists(os.path.join(_DASHBOARD_DIR, path)):
+        return send_from_directory(_DASHBOARD_DIR, path)
+    # Otherwise serve index.html for SPA routing
     return _serve_dashboard_page("index.html")
 
 
