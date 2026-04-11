@@ -12,6 +12,7 @@ import sys
 import random
 import json
 import re
+import math
 from typing import List, Dict, Any, Optional
 
 from openai import OpenAI
@@ -56,6 +57,31 @@ class HeuristicAgent:
         self.env = env
         self._llm_failures = 0
         self._llm_disabled = False  # Disable LLM after too many failures
+        # Tuned fallback policy parameters.
+        self.max_triage_per_step = 10
+        self.red_threshold_minutes = 6
+        self.yellow_threshold_minutes = 1
+
+    @staticmethod
+    def _distance(point_a, point_b) -> float:
+        return math.sqrt(
+            (point_a[0] - point_b[0]) ** 2 + (point_a[1] - point_b[1]) ** 2
+        )
+
+    def _estimate_trip_time(
+        self,
+        team: Dict[str, Any],
+        victim: Dict[str, Any],
+        hospital: Dict[str, Any],
+        road_blocked: bool = False,
+    ) -> float:
+        team_loc = team.get("location", [100.0, 100.0])
+        victim_loc = victim.get("location", team_loc)
+        hospital_loc = hospital.get("location", victim_loc)
+        trip = self._distance(team_loc, victim_loc) + self._distance(victim_loc, hospital_loc)
+        if road_blocked:
+            trip *= 1.5
+        return trip
 
     def act(self, state: Dict) -> IncidentAction:
         """
@@ -105,7 +131,7 @@ class HeuristicAgent:
         return IncidentAction(directives=directives)
 
     def _build_prompt(self, state: Dict) -> str:
-        # Compact prompt for faster API response
+        compact_state = self._summarize_state_for_llm(state)
         return f"""Expert disaster response AI. Return ONLY valid JSON.
 
 PRIORITIES: 1)RED victims first 2)Use ambulances efficiently 3)Rescue trapped 4)Right hospital
@@ -117,10 +143,86 @@ ACTIONS:
 
 RULES: Triage before dispatch. Don't use busy teams. RED->trauma center.
 
-STATE:{json.dumps(state, separators=(',', ':'))}
+STATE:{json.dumps(compact_state, separators=(',', ':'))}
 
 Return: {{"directives":[...]}}
 """
+
+    def _summarize_state_for_llm(self, state: Dict) -> Dict[str, Any]:
+        victims = state.get("victims", [])
+        hospitals = state.get("hospitals", [])
+        teams = state.get("teams", [])
+
+        untriaged = [
+            v for v in victims
+            if v.get("status") in ("TRAPPED", "TRIAGED") and v.get("assigned_tag") is None
+        ]
+        untriaged.sort(key=lambda v: v.get("minutes_since_injury", 0), reverse=True)
+
+        waiting = [
+            v for v in victims
+            if v.get("status") in ("TRAPPED", "TRIAGED") and v.get("assigned_tag") is not None
+        ]
+        waiting.sort(
+            key=lambda v: (
+                0 if v.get("assigned_tag") == "RED" else (1 if v.get("assigned_tag") == "YELLOW" else 2),
+                -v.get("minutes_since_injury", 0),
+            )
+        )
+
+        free_ambulances = [
+            {
+                "id": t.get("id"),
+                "location": t.get("location"),
+            }
+            for t in teams
+            if t.get("type") == "AMBULANCE" and t.get("is_free") and t.get("transport_victim") is None
+        ]
+        free_sar = [
+            {"id": t.get("id")}
+            for t in teams
+            if t.get("type") == "SEARCH_RESCUE" and t.get("is_free")
+        ]
+
+        return {
+            "step": state.get("step"),
+            "golden_hour_remaining": state.get("golden_hour_remaining"),
+            "road_blocked": state.get("road_blocked"),
+            "secondary_collapse_risk": state.get("secondary_collapse_risk"),
+            "summary": state.get("summary", {}),
+            "hospitals": [
+                {
+                    "id": h.get("id"),
+                    "available_beds": h.get("available_beds"),
+                    "total_capacity": h.get("total_capacity"),
+                    "trauma_level": h.get("trauma_level"),
+                    "travel_time_minutes": h.get("travel_time_minutes"),
+                    "is_accepting": h.get("is_accepting"),
+                }
+                for h in hospitals
+            ],
+            "free_ambulances": free_ambulances,
+            "free_sar": free_sar,
+            "untriaged_focus": [
+                {
+                    "id": v.get("id"),
+                    "status": v.get("status"),
+                    "minutes_since_injury": v.get("minutes_since_injury"),
+                    "location": v.get("location"),
+                }
+                for v in untriaged[:40]
+            ],
+            "waiting_focus": [
+                {
+                    "id": v.get("id"),
+                    "tag": v.get("assigned_tag"),
+                    "status": v.get("status"),
+                    "minutes_since_injury": v.get("minutes_since_injury"),
+                    "location": v.get("location"),
+                }
+                for v in waiting[:60]
+            ],
+        }
 
     def _extract_response_text(self, completion: Any) -> str:
         content = completion.choices[0].message.content
@@ -397,11 +499,12 @@ Return: {{"directives":[...]}}
             v for v in state["victims"]
             if v["status"] in ("TRAPPED", "TRIAGED") and v["assigned_tag"] is None
         ]
-        for victim in untriaged:
+        untriaged.sort(key=lambda v: v.get("minutes_since_injury", 0), reverse=True)
+        for victim in untriaged[: self.max_triage_per_step]:
             minutes = victim["minutes_since_injury"]
-            if minutes > 10:
+            if minutes > self.red_threshold_minutes:
                 tag = TriageTag.RED
-            elif minutes > 5:
+            elif minutes > self.yellow_threshold_minutes:
                 tag = TriageTag.YELLOW
             else:
                 tag = TriageTag.GREEN
@@ -416,33 +519,55 @@ Return: {{"directives":[...]}}
         ]
         if not free_ambs:
             return directives
-        triaged = []
-        for v in state["victims"]:
-            if v["status"] in ("TRAPPED", "TRIAGED") and v["assigned_tag"] is not None:
-                tag_str = v["assigned_tag"]
-                priority = 0 if tag_str == "RED" else (1 if tag_str == "YELLOW" else 2)
-                triaged.append((priority, -v.get("minutes_since_injury", 0), v))
-        triaged.sort(key=lambda x: (x[0], x[1]))
-        hospitals = state["hospitals"]
+        triaged = [
+            v for v in state["victims"]
+            if v["status"] in ("TRAPPED", "TRIAGED") and v["assigned_tag"] is not None
+        ]
+        victims_by_tag = {
+            "RED": [v for v in triaged if v.get("assigned_tag") == "RED"],
+            "YELLOW": [v for v in triaged if v.get("assigned_tag") == "YELLOW"],
+            "GREEN": [v for v in triaged if v.get("assigned_tag") == "GREEN"],
+        }
+        hospitals = [h for h in state["hospitals"] if h["is_accepting"]]
+        if not hospitals:
+            return directives
+
+        used_victims = set()
         for amb in free_ambs:
-            if not triaged:
-                break
-            _, _, victim = triaged.pop(0)
-            tag = TriageTag[victim["assigned_tag"]]
-            if tag == TriageTag.RED:
-                accepting = [h for h in hospitals if h["is_accepting"]]
-                if accepting:
-                    accepting.sort(key=lambda h: h["trauma_level"])
-                    hosp = accepting[0]
-                else:
+            bucket = victims_by_tag["RED"] or victims_by_tag["YELLOW"] or victims_by_tag["GREEN"]
+            bucket = [v for v in bucket if v.get("id") not in used_victims]
+            if not bucket:
+                continue
+
+            best_choice = None
+            for victim in bucket:
+                tag_str = victim.get("assigned_tag", "GREEN")
+                best_hosp = None
+                best_hosp_key = None
+                for hosp in hospitals:
+                    trip = self._estimate_trip_time(
+                        amb,
+                        victim,
+                        hosp,
+                        road_blocked=bool(state.get("road_blocked", False)),
+                    )
+                    hosp_key = (trip, hosp.get("trauma_level", 99)) if tag_str == "RED" else (trip,)
+                    if best_hosp_key is None or hosp_key < best_hosp_key:
+                        best_hosp_key = hosp_key
+                        best_hosp = hosp
+
+                if best_hosp is None or best_hosp_key is None:
                     continue
-            else:
-                accepting = [h for h in hospitals if h["is_accepting"]]
-                if accepting:
-                    accepting.sort(key=lambda h: h["travel_time_minutes"])
-                    hosp = accepting[0]
-                else:
-                    continue
+
+                victim_score = (best_hosp_key[0], -victim.get("minutes_since_injury", 0))
+                if best_choice is None or victim_score < best_choice[0]:
+                    best_choice = (victim_score, victim, best_hosp)
+
+            if best_choice is None:
+                continue
+
+            _, victim, hosp = best_choice
+            used_victims.add(victim["id"])
             directives.append({
                 "type": "dispatch",
                 "team_id": amb["id"],
