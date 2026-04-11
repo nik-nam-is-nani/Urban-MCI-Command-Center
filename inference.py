@@ -58,6 +58,9 @@ class HeuristicAgent:
         self._llm_failures = 0
         # Force pure-heuristic mode. LLM is never called.
         self._llm_disabled = True
+        self._base_location = (100.0, 100.0)
+        self._first_seen_victims: Dict[int, Dict[str, Any]] = {}
+        self._likely_black_victims: Set[int] = set()
 
     @staticmethod
     def _distance(point_a, point_b) -> float:
@@ -79,6 +82,43 @@ class HeuristicAgent:
         if road_blocked:
             trip *= 1.5
         return trip
+
+    def _is_task3(self) -> bool:
+        return int(getattr(self.env, "task", 0)) == 3
+
+    def _record_first_observations(self, state: Dict[str, Any]) -> None:
+        for victim in state.get("victims", []):
+            victim_id = self._to_int(victim.get("id"))
+            if victim_id is None or victim_id in self._first_seen_victims:
+                continue
+            status = str(victim.get("status", ""))
+            minutes = float(victim.get("minutes_since_injury", 0.0))
+            self._first_seen_victims[victim_id] = {
+                "status": status,
+                "minutes_since_injury": minutes,
+            }
+
+            # Task-3 optimization: hopelessly delayed trapped casualties are
+            # deprioritized so SAR/fire resources focus on saveable victims.
+            if self._is_task3() and status == "TRAPPED" and minutes > 90:
+                self._likely_black_victims.add(victim_id)
+
+    def _is_likely_black(self, victim_id: int) -> bool:
+        return victim_id in self._likely_black_victims
+
+    def _is_between_victim_and_base(
+        self,
+        victim: Dict[str, Any],
+        hospital: Dict[str, Any],
+    ) -> bool:
+        victim_loc = victim.get("location", list(self._base_location))
+        hospital_loc = hospital.get("location", list(self._base_location))
+        direct = self._distance(victim_loc, self._base_location)
+        via = self._distance(victim_loc, hospital_loc) + self._distance(hospital_loc, self._base_location)
+        if direct <= 1e-6:
+            return False
+        # Collinearity tolerance to detect hospitals roughly on return path.
+        return via <= (direct * 1.12)
 
     def act(self, state: Dict) -> IncidentAction:
         """
@@ -624,6 +664,8 @@ Return ONLY the JSON:
           d) assign SAR teams
           e) assign fire teams
         """
+        self._record_first_observations(state)
+        likely_black_victims = set(self._likely_black_victims)
         directives: List[Dict[str, Any]] = []
         planned_tags: Dict[int, str] = {}
 
@@ -637,7 +679,10 @@ Return ONLY the JSON:
             victim_id = self._to_int(victim.get("id"))
             if victim_id is None:
                 continue
-            tag_name = self._post_sar_tag(victim.get("minutes_since_injury", 0))
+            if self._is_task3() and self._is_likely_black(victim_id):
+                tag_name = "BLACK"
+            else:
+                tag_name = self._post_sar_tag(victim.get("minutes_since_injury", 0))
             planned_tags[victim_id] = tag_name
             directives.append(
                 {
@@ -659,7 +704,10 @@ Return ONLY the JSON:
             victim_id = self._to_int(victim.get("id"))
             if victim_id is None:
                 continue
-            tag_name = self._regular_tag(victim.get("minutes_since_injury", 0))
+            if self._is_task3() and self._is_likely_black(victim_id):
+                tag_name = "BLACK"
+            else:
+                tag_name = self._regular_tag(victim.get("minutes_since_injury", 0))
             planned_tags[victim_id] = tag_name
             directives.append(
                 {
@@ -670,11 +718,19 @@ Return ONLY the JSON:
             )
 
         # c) DISPATCH AMBULANCES (same-step with planned_tags)
-        dispatch_directives, dispatched_victim_ids = self._dispatch_ambulances(state, planned_tags)
+        dispatch_directives, dispatched_victim_ids = self._dispatch_ambulances(
+            state=state,
+            planned_tags=planned_tags,
+            likely_black_victims=likely_black_victims,
+        )
         directives.extend(dispatch_directives)
 
         # d) ASSIGN SAR TEAMS
-        sar_directives, sar_target_ids = self._assign_sar_teams(state, dispatched_victim_ids)
+        sar_directives, sar_target_ids = self._assign_sar_teams(
+            state=state,
+            dispatched_victim_ids=dispatched_victim_ids,
+            likely_black_victims=likely_black_victims,
+        )
         directives.extend(sar_directives)
 
         # e) ASSIGN FIRE TEAMS
@@ -683,6 +739,7 @@ Return ONLY the JSON:
                 state=state,
                 sar_target_ids=sar_target_ids,
                 dispatched_victim_ids=dispatched_victim_ids,
+                likely_black_victims=likely_black_victims,
             )
         )
 
@@ -692,10 +749,12 @@ Return ONLY the JSON:
         self,
         state: Dict[str, Any],
         planned_tags: Optional[Dict[int, str]] = None,
+        likely_black_victims: Optional[Set[int]] = None,
     ) -> Tuple[List[Dict[str, Any]], Set[int]]:
         directives: List[Dict[str, Any]] = []
         dispatched_victim_ids: Set[int] = set()
         planned_tags = planned_tags or {}
+        likely_black_victims = likely_black_victims or set()
 
         free_ambulances = [
             team
@@ -717,6 +776,8 @@ Return ONLY the JSON:
             victim_id = self._to_int(victim.get("id"))
             if victim_id is None:
                 continue
+            if victim_id in likely_black_victims:
+                continue
 
             tag_name = self._normalize_tag(victim.get("assigned_tag"))
             if tag_name is None:
@@ -728,6 +789,15 @@ Return ONLY the JSON:
 
         if not candidates:
             return directives, dispatched_victim_ids
+
+        if self._is_task3():
+            has_urgent = any(tag_name in ("RED", "YELLOW") for _, tag_name in candidates)
+            if has_urgent:
+                candidates = [
+                    (victim, tag_name)
+                    for victim, tag_name in candidates
+                    if tag_name in ("RED", "YELLOW")
+                ]
 
         hospitals = [hospital for hospital in state.get("hospitals", []) if hospital.get("is_accepting")]
         if not hospitals:
@@ -753,7 +823,7 @@ Return ONLY the JSON:
                     continue
 
                 best_hospital_id = None
-                best_trip_distance = None
+                best_hospital_cost = None
                 for hospital in hospitals:
                     hospital_id = self._to_int(hospital.get("id"))
                     if hospital_id is None:
@@ -769,15 +839,30 @@ Return ONLY the JSON:
                         hospital=hospital,
                         road_blocked=road_blocked,
                     )
-                    if best_trip_distance is None or trip_distance < best_trip_distance:
-                        best_trip_distance = trip_distance
+
+                    hospital_cost = trip_distance
+                    if self._is_task3():
+                        # Task-3 optimization: approximate full cycle by adding
+                        # a return-to-base term and favor hospitals on the return path.
+                        return_distance = self._distance(
+                            hospital.get("location", list(self._base_location)),
+                            self._base_location,
+                        )
+                        if road_blocked:
+                            return_distance *= 1.5
+                        hospital_cost += 0.25 * return_distance
+                        if self._is_between_victim_and_base(victim, hospital):
+                            hospital_cost -= 2.0
+
+                    if best_hospital_cost is None or hospital_cost < best_hospital_cost:
+                        best_hospital_cost = hospital_cost
                         best_hospital_id = hospital_id
 
-                if best_hospital_id is None or best_trip_distance is None:
+                if best_hospital_id is None or best_hospital_cost is None:
                     continue
 
                 urgency = victim.get("minutes_since_injury", 0)
-                score = best_trip_distance + priority_penalty[tag_name] - (0.1 * urgency)
+                score = best_hospital_cost + priority_penalty[tag_name] - (0.1 * urgency)
                 if best_choice is None or score < best_choice[0]:
                     best_choice = (score, victim_id, best_hospital_id)
 
@@ -802,10 +887,12 @@ Return ONLY the JSON:
         self,
         state: Dict[str, Any],
         dispatched_victim_ids: Optional[Set[int]] = None,
+        likely_black_victims: Optional[Set[int]] = None,
     ) -> Tuple[List[Dict[str, Any]], Set[int]]:
         directives: List[Dict[str, Any]] = []
         sar_target_ids: Set[int] = set()
         dispatched_victim_ids = dispatched_victim_ids or set()
+        likely_black_victims = likely_black_victims or set()
 
         free_sar = [
             team
@@ -819,6 +906,7 @@ Return ONLY the JSON:
             for victim in state.get("victims", [])
             if victim.get("status") == "TRAPPED"
             and self._to_int(victim.get("id")) not in dispatched_victim_ids
+            and self._to_int(victim.get("id")) not in likely_black_victims
         ]
         trapped_victims.sort(key=lambda victim: victim.get("minutes_since_injury", 0), reverse=True)
 
@@ -842,10 +930,12 @@ Return ONLY the JSON:
         state: Dict[str, Any],
         sar_target_ids: Optional[Set[int]] = None,
         dispatched_victim_ids: Optional[Set[int]] = None,
+        likely_black_victims: Optional[Set[int]] = None,
     ) -> List[Dict[str, Any]]:
         directives: List[Dict[str, Any]] = []
         sar_target_ids = sar_target_ids or set()
         dispatched_victim_ids = dispatched_victim_ids or set()
+        likely_black_victims = likely_black_victims or set()
 
         free_fire = [
             team
@@ -862,6 +952,7 @@ Return ONLY the JSON:
             if victim.get("status") == "TRAPPED"
             and self._to_int(victim.get("id")) not in sar_target_ids
             and self._to_int(victim.get("id")) not in dispatched_victim_ids
+            and self._to_int(victim.get("id")) not in likely_black_victims
         ]
         targets.sort(key=lambda victim: victim.get("minutes_since_injury", 0), reverse=True)
         if not targets:
