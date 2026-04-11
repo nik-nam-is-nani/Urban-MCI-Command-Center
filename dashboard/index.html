@@ -87,6 +87,73 @@
         .left-panel { border-right: 1px solid var(--border-glow); overflow-y: auto; }
         .right-panel { border-left: 1px solid var(--border-glow); overflow-y: auto; }
 
+        /* Legend Section */
+        .legend-section {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .legend-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .legend-icon {
+            font-size: 1rem;
+            width: 20px;
+            text-align: center;
+        }
+
+        .legend-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .legend-row:last-child { border-bottom: none; }
+
+        /* Action indicator badges */
+        .action-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .action-badge.enroute { background: rgba(0, 212, 255, 0.2); color: #00d4ff; }
+        .action-badge.loading { background: rgba(234, 179, 8, 0.2); color: #eab308; }
+        .action-badge.transporting { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .action-badge.available { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+
         .main-canvas-container {
             position: relative;
             display: flex;
@@ -651,7 +718,50 @@
     <!-- Right Panel: Metrics -->
     <div class="panel right-panel">
         <h2>Live Metrics</h2>
-        
+
+        <!-- Legend Section -->
+        <div class="legend-section">
+            <div class="legend-title">📋 Triage Tags</div>
+            <div class="legend-row">
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ef4444; box-shadow: 0 0 10px #ef4444;"></div>
+                    <span>RED - Immediate (Life-threatening)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #eab308; box-shadow: 0 0 10px #eab308;"></div>
+                    <span>YELLOW - Delayed (Serious but stable)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #22c55e; box-shadow: 0 0 10px #22c55e;"></div>
+                    <span>GREEN - Minor (Walking wounded)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #4b5563;"></div>
+                    <span>BLACK - Expectant (Deceased)</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="legend-section">
+            <div class="legend-title">🚑 Resource Icons</div>
+            <div class="legend-row">
+                <div class="legend-item"><span class="legend-icon">🚑</span> Ambulance</div>
+                <div class="legend-item"><span class="legend-icon">🔦</span> SAR Team</div>
+                <div class="legend-item"><span class="legend-icon">🔥</span> Fire Team</div>
+                <div class="legend-item"><span class="legend-icon">🏥</span> Hospital</div>
+            </div>
+            <div class="legend-row" style="margin-top: 10px;">
+                <div class="legend-item">
+                    <span class="action-badge available">Available</span>
+                    <span class="action-badge enroute">En Route</span>
+                </div>
+                <div class="legend-item">
+                    <span class="action-badge loading">Loading</span>
+                    <span class="action-badge transporting">Transporting</span>
+                </div>
+            </div>
+        </div>
+
         <div class="stat-grid">
             <div class="stat-card">
                 <div class="stat-label">Total / Trapped</div>
@@ -668,6 +778,30 @@
             <div class="stat-card">
                 <div class="stat-label">Deceased (Black)</div>
                 <div class="stat-value" id="stat-dead" style="color: #ef4444;">0</div>
+            </div>
+        </div>
+
+        <!-- Live Action Feed -->
+        <div class="legend-section">
+            <div class="legend-title">⚡ Live Actions</div>
+            <div id="action-feed" style="max-height: 140px; overflow-y: auto; font-size: 0.78rem;">
+                <div style="color: var(--text-muted); font-style: italic;">No active operations...</div>
+            </div>
+        </div>
+
+        <h3>Resource Status</h3>
+        <div class="stat-grid" id="resource-stats">
+            <div class="stat-card">
+                <div class="stat-label">Ambulances</div>
+                <div class="stat-value" id="stat-amb-free" style="color: #06b6d4;">0 / 0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">SAR Teams</div>
+                <div class="stat-value" id="stat-sar-free" style="color: #eab308;">0 / 0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Fire Teams</div>
+                <div class="stat-value" id="stat-fire-free" style="color: #ef4444;">0 / 0</div>
             </div>
         </div>
 
@@ -726,9 +860,9 @@
         function getEntityLocation(entityType, id, total) {
             const key = `${entityType}_${id}`;
             if (locationMap.has(key)) return locationMap.get(key);
-            
+
             const rand = pseudoRandom(id * 1337 + (entityType==='hospital'? 1 : 2));
-            
+
             let x, y;
             if (entityType === 'hospital') {
                 // Distribute hospitals around edges
@@ -737,13 +871,23 @@
                 x = CONFIG.CANVAS_WIDTH/2 + Math.cos(angle) * r;
                 y = CONFIG.CANVAS_HEIGHT/2 + Math.sin(angle) * r;
             } else {
-                // Cluster victims in the center (collapse zone)
-                const angle = rand() * Math.PI * 2;
-                const r = rand() * rand() * (Math.min(CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT) / 2 * 0.5);
-                x = CONFIG.CANVAS_WIDTH/2 + Math.cos(angle) * r;
-                y = CONFIG.CANVAS_HEIGHT/2 + Math.sin(angle) * r;
+                // Spread victims in spiral pattern for better visibility
+                const spiralAngle = id * 0.5; // Golden angle approximation
+                const maxRadius = Math.min(CONFIG.CANVAS_WIDTH, CONFIG.CANVAS_HEIGHT) / 2 * 0.6;
+                const spread = Math.sqrt(id / Math.max(total, 1)) * maxRadius;
+
+                // Add some randomness but keep spread out
+                const angleVar = (rand() - 0.5) * 0.3;
+                const radiusVar = (rand() - 0.5) * 30;
+
+                x = CONFIG.CANVAS_WIDTH/2 + Math.cos(spiralAngle + angleVar) * (spread + radiusVar);
+                y = CONFIG.CANVAS_HEIGHT/2 + Math.sin(spiralAngle + angleVar) * (spread + radiusVar);
+
+                // Keep within bounds
+                x = Math.max(50, Math.min(CONFIG.CANVAS_WIDTH - 50, x));
+                y = Math.max(50, Math.min(CONFIG.CANVAS_HEIGHT - 50, y));
             }
-            
+
             const loc = { x, y };
             locationMap.set(key, loc);
             return loc;
@@ -965,19 +1109,48 @@
                     this.ctx.shadowBlur = 0; // reset
                 });
 
-                // Draw Ambulances
+                // Draw Ambulances with state indicators
                 ambulancePositions.forEach(amb => {
                     amb._loc = amb.pos;
-                    this.ctx.font = '18px Arial';
+                    const state = amb.state || 'available';
+
+                    // Draw glow effect based on state
+                    const stateColors = {
+                        'available': 'rgba(16, 185, 129, 0.6)',
+                        'enroute': 'rgba(6, 182, 212, 0.6)',
+                        'loading': 'rgba(234, 179, 8, 0.6)',
+                        'transporting': 'rgba(34, 197, 94, 0.8)'
+                    };
+
+                    // Pulsing glow effect
+                    const pulse = (Math.sin(timeMs / 150) + 1) / 2;
+                    const glowSize = state === 'transporting' ? 15 + (5 * pulse) : 8;
+
+                    this.ctx.shadowBlur = glowSize;
+                    this.ctx.shadowColor = stateColors[state] || stateColors.available;
+
+                    // Draw ambulance emoji
+                    this.ctx.font = '20px Arial';
                     this.ctx.textAlign = 'center';
                     this.ctx.textBaseline = 'middle';
-                    
-                    if (amb.transport_victim !== null) {
-                        this.ctx.shadowBlur = 10;
-                        this.ctx.shadowColor = 'rgba(0, 212, 255, 0.8)';
-                    }
                     this.ctx.fillText('🚑', amb.pos.x, amb.pos.y);
                     this.ctx.shadowBlur = 0;
+
+                    // Draw state indicator dot
+                    const indicatorColors = {
+                        'available': '#10b981',
+                        'enroute': '#06b6d4',
+                        'loading': '#eab308',
+                        'transporting': '#22c55e'
+                    };
+
+                    this.ctx.beginPath();
+                    this.ctx.arc(amb.pos.x + 12, amb.pos.y - 12, 5, 0, Math.PI * 2);
+                    this.ctx.fillStyle = indicatorColors[state] || indicatorColors.available;
+                    this.ctx.fill();
+                    this.ctx.strokeStyle = '#000';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.stroke();
                 });
             }
 
@@ -1042,57 +1215,72 @@
         }
 
         // =========================================================
-        //  class AnimationEngine — lerp and loops
+        //  class AnimationEngine — lerp and loops with state tracking
         // =========================================================
         class AnimationEngine {
             constructor(renderer) {
                 this.renderer = renderer;
                 this.lastTime = 0;
-                this.ambulancePositions = new Map(); // id -> { pos: {x,y}, target: {x,y} }
+                this.ambulancePositions = new Map(); // id -> { pos: {x,y}, target: {x,y}, state }
+                this.ambulanceStates = new Map(); // id -> { state, victimId, hospitalId }
                 this.loop = this.loop.bind(this);
                 requestAnimationFrame(this.loop);
             }
 
             updateTargets(state) {
                 if (!state || !state.teams) return;
-                
+
                 const ambs = state.teams.filter(t => t.type === 'AMBULANCE');
-                
+
                 ambs.forEach(t => {
                     let targetLoc = { x: CONFIG.CANVAS_WIDTH/2, y: CONFIG.CANVAS_HEIGHT/2 }; // Default center base
-                    
+                    let newState = 'available';
+                    let victimId = null;
+                    let hospitalId = null;
+
                     if (t.assigned_location) {
-                        // Backend location e.g., victim_id or hospital_id. We need to infer logic.
-                        // Simple infer: if transport_victim is set, heading to hospital? 
-                        // It's simpler to just determine target based on state heuristics if direct loc isn't provided.
-                        
-                        // Fake mapping based on is_free and transport
                         if (!t.is_free && t.transport_victim !== null) {
-                            // Find victim transport destination (hospital)
+                            // Transporting victim to hospital
                             targetLoc = getEntityLocation('hospital', t.assigned_location || 0, state.hospitals.length);
+                            newState = 'transporting';
+                            victimId = t.transport_victim;
+                            hospitalId = t.assigned_location;
                         } else if (!t.is_free) {
-                            // Heading to victim
+                            // En route to victim
                             targetLoc = getEntityLocation('victim', t.assigned_location || 0, state.victims.length);
+                            newState = 'enroute';
+                            victimId = t.assigned_location;
                         }
+                    } else if (t.is_free) {
+                        newState = 'available';
                     }
 
                     if (!this.ambulancePositions.has(t.id)) {
-                        this.ambulancePositions.set(t.id, { pos: {...targetLoc}, target: targetLoc, ...t });
+                        this.ambulancePositions.set(t.id, { pos: {...targetLoc}, target: targetLoc, ...t, state: newState });
                     } else {
                         const obj = this.ambulancePositions.get(t.id);
-                        obj.target = targetLoc;
+                        // Only update target if changed significantly
+                        const dist = Math.sqrt(Math.pow(obj.target.x - targetLoc.x, 2) + Math.pow(obj.target.y - targetLoc.y, 2));
+                        if (dist > 10 || obj.state !== newState) {
+                            obj.target = targetLoc;
+                            obj.state = newState;
+                        }
                         obj.transport_victim = t.transport_victim;
                         obj.is_free = t.is_free;
                     }
+
+                    this.ambulanceStates.set(t.id, { state: newState, victimId, hospitalId });
                 });
             }
 
             loop(timestamp) {
-                // Lerp logic
+                // Lerp logic with speed based on state
                 const ambs = Array.from(this.ambulancePositions.values());
                 ambs.forEach(a => {
-                    a.pos.x += (a.target.x - a.pos.x) * 0.05; // smooth factor
-                    a.pos.y += (a.target.y - a.pos.y) * 0.05;
+                    // Different speeds for different states
+                    const speed = a.state === 'transporting' ? 0.08 : 0.05;
+                    a.pos.x += (a.target.x - a.pos.x) * speed;
+                    a.pos.y += (a.target.y - a.pos.y) * speed;
                 });
 
                 this.renderer.render(STATE.cachedData, ambs, timestamp);
@@ -1105,31 +1293,89 @@
         // =========================================================
         class MetricsPanel {
             constructor() {
-                // Chart Setup
+                // Chart Setup - Enhanced for better readability
                 const ctx = document.getElementById('scoreChart').getContext('2d');
+
+                // Create gradient for chart
+                const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+                gradient.addColorStop(0, 'rgba(0, 240, 255, 0.4)');
+                gradient.addColorStop(1, 'rgba(0, 240, 255, 0.05)');
+
                 this.scoreHistory = [];
                 this.chart = new Chart(ctx, {
                     type: 'line',
                     data: {
                         labels: [],
                         datasets: [{
-                            label: 'Score Track',
+                            label: 'Rescue Score',
                             data: [],
-                            borderColor: '#00d4ff',
-                            backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                            borderWidth: 2,
+                            borderColor: '#00f0ff',
+                            backgroundColor: gradient,
+                            borderWidth: 3,
                             fill: true,
-                            tension: 0.4,
-                            pointRadius: 0
+                            tension: 0.3,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#00f0ff',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 6,
+                            pointHoverBackgroundColor: '#00f0ff',
+                            pointHoverBorderColor: '#fff',
+                            pointHoverBorderWidth: 3
                         }]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        plugins: { legend: { display: false } },
+                        interaction: {
+                            intersect: false,
+                            mode: 'index'
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(13, 18, 30, 0.95)',
+                                titleColor: '#00f0ff',
+                                bodyColor: '#f1f5f9',
+                                borderColor: 'rgba(0, 240, 255, 0.3)',
+                                borderWidth: 1,
+                                padding: 12,
+                                displayColors: false,
+                                callbacks: {
+                                    label: function(context) {
+                                        return 'Score: ' + (context.parsed.y * 100).toFixed(1) + '%';
+                                    },
+                                    title: function(context) {
+                                        return 'Step ' + context[0].label;
+                                    }
+                                }
+                            }
+                        },
                         scales: {
-                            y: { beginAtZero: true, max: 1.0, ticks: { color: '#94a3b8' } },
-                            x: { display: false }
+                            y: {
+                                beginAtZero: true,
+                                max: 1.0,
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.08)',
+                                    drawBorder: false
+                                },
+                                ticks: {
+                                    color: '#94a3b8',
+                                    callback: function(value) {
+                                        return (value * 100) + '%';
+                                    }
+                                }
+                            },
+                            x: {
+                                grid: {
+                                    color: 'rgba(255, 255, 255, 0.05)',
+                                    drawBorder: false
+                                },
+                                ticks: {
+                                    color: '#94a3b8',
+                                    maxTicksLimit: 8
+                                }
+                            }
                         }
                     }
                 });
@@ -1148,10 +1394,27 @@
                     document.getElementById('stat-dead').textContent = state.summary.deceased;
                 }
 
+                // Count resources by type and status
+                const teams = state.teams || [];
+                const totalAmb = teams.filter(t => t.type === 'AMBULANCE').length;
+                const freeAmb = teams.filter(t => t.type === 'AMBULANCE' && t.is_free).length;
+                const totalSar = teams.filter(t => t.type === 'SAR').length;
+                const freeSar = teams.filter(t => t.type === 'SAR' && t.is_free).length;
+                const totalFire = teams.filter(t => t.type === 'FIRE').length;
+                const freeFire = teams.filter(t => t.type === 'FIRE' && t.is_free).length;
+
+                // Update Resource Status
+                document.getElementById('stat-amb-free').textContent = `${freeAmb} / ${totalAmb}`;
+                document.getElementById('stat-sar-free').textContent = `${freeSar} / ${totalSar}`;
+                document.getElementById('stat-fire-free').textContent = `${freeFire} / ${totalFire}`;
+
+                // Update Live Action Feed
+                this.updateActionFeed(state, teams);
+
                 // Update Hospitals
                 const hContainer = document.getElementById('hospitals-container');
                 hContainer.innerHTML = '';
-                
+
                 let isOverloaded = false;
 
                 state.hospitals.forEach(h => {
@@ -1176,6 +1439,45 @@
                 });
 
                 AlertSystem.checkOverload(isOverloaded);
+            }
+
+            updateActionFeed(state, teams) {
+                const feedEl = document.getElementById('action-feed');
+                if (!feedEl) return;
+
+                const ambs = teams.filter(t => t.type === 'AMBULANCE');
+                const actions = [];
+
+                ambs.forEach(t => {
+                    let actionText = '';
+                    let actionColor = '#10b981';
+
+                    if (!t.is_free && t.transport_victim !== null) {
+                        actionText = `🚑 Ambulance #${t.id} → Hospital (Victim #${t.transport_victim})`;
+                        actionColor = '#22c55e';
+                    } else if (!t.is_free && t.assigned_location !== null) {
+                        actionText = `🚑 Ambulance #${t.id} → Victim #${t.assigned_location}`;
+                        actionColor = '#06b6d4';
+                    } else if (t.is_free) {
+                        actionText = `🚑 Ambulance #${t.id} - Available`;
+                        actionColor = '#10b981';
+                    }
+
+                    if (actionText) {
+                        actions.push({ text: actionText, color: actionColor });
+                    }
+                });
+
+                if (actions.length === 0) {
+                    feedEl.innerHTML = '<div style="color: var(--text-muted); font-style: italic;">No active operations...</div>';
+                    return;
+                }
+
+                feedEl.innerHTML = actions.map(a => `
+                    <div style="padding: 6px 8px; margin-bottom: 4px; background: rgba(0,0,0,0.2); border-radius: 6px; border-left: 3px solid ${a.color};">
+                        <span style="color: rgba(255,255,255,0.9)">${a.text}</span>
+                    </div>
+                `).join('');
             }
 
             updateScore(gradeData, step) {
@@ -1381,12 +1683,41 @@
             async syncState(data) {
                 STATE.step = data.step;
                 STATE.cachedData = data;
-                
+
+                // Detect new actions by comparing ambulance states
+                const prevAmbStates = new Map(this.animEngine.ambulanceStates);
+
                 this.animEngine.updateTargets(data);
                 this.metricsPanel.update(data, STATE);
-                
+
+                // Log new ambulance actions
+                this.logAmbulanceActions(prevAmbStates, data);
+
                 const gradeInfo = await APIClient.fetchGrade();
                 this.metricsPanel.updateScore(gradeInfo, data.step);
+            }
+
+            logAmbulanceActions(prevStates, data) {
+                if (!data.teams) return;
+
+                const ambs = data.teams.filter(t => t.type === 'AMBULANCE');
+                ambs.forEach(t => {
+                    const prevState = prevStates.get(t.id);
+                    const currentState = this.animEngine.ambulanceStates.get(t.id);
+
+                    if (!prevState || !currentState) return;
+
+                    // Detect state changes
+                    if (prevState.state !== currentState.state) {
+                        if (currentState.state === 'enroute') {
+                            EventLogger.log(`🚑 Ambulance #${t.id} dispatched to Victim #${currentState.victimId}`, '#06b6d4');
+                        } else if (currentState.state === 'transporting') {
+                            EventLogger.log(`🚑 Ambulance #${t.id} transporting Victim #${currentState.victimId} to Hospital`, '#22c55e');
+                        } else if (currentState.state === 'available') {
+                            EventLogger.log(`🚑 Ambulance #${t.id} available for dispatch`, '#10b981');
+                        }
+                    }
+                });
             }
 
             toggleAutoRun(active) {
