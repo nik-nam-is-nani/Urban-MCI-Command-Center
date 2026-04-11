@@ -671,6 +671,26 @@
             </div>
         </div>
 
+        <h3>Resource Status</h3>
+        <div class="stat-grid" id="resource-stats">
+            <div class="stat-card">
+                <div class="stat-label">🚑 Ambulances Free</div>
+                <div class="stat-value" id="stat-amb-free" style="color: #22c55e;">0 / 0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">🚑 Ambulances Busy</div>
+                <div class="stat-value" id="stat-amb-busy" style="color: #eab308;">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">🔦 SAR Teams Free</div>
+                <div class="stat-value" id="stat-sar-free" style="color: #06b6d4;">0 / 0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">🔥 Fire Teams Free</div>
+                <div class="stat-value" id="stat-fire-free" style="color: #f97316;">0 / 0</div>
+            </div>
+        </div>
+
         <h3>Hospital Utilization</h3>
         <div id="hospitals-container">
             <!-- Dynamically populated -->
@@ -1147,6 +1167,28 @@
                     document.getElementById('stat-treated').textContent = state.summary.at_hospital;
                     document.getElementById('stat-dead').textContent = state.summary.deceased;
                 }
+
+                // Update Resource/Team Stats
+                const teams = state.teams || [];
+
+                // Count ambulances
+                const totalAmb = teams.filter(t => t.type === 'AMBULANCE').length;
+                const freeAmb = teams.filter(t => t.type === 'AMBULANCE' && t.is_free).length;
+                const busyAmb = totalAmb - freeAmb;
+
+                // Count SAR teams
+                const totalSar = teams.filter(t => t.type === 'SEARCH_RESCUE').length;
+                const freeSar = teams.filter(t => t.type === 'SEARCH_RESCUE' && t.is_free).length;
+
+                // Count Fire teams
+                const totalFire = teams.filter(t => t.type === 'FIRE').length;
+                const freeFire = teams.filter(t => t.type === 'FIRE' && t.is_free).length;
+
+                // Update DOM
+                document.getElementById('stat-amb-free').textContent = `${freeAmb} / ${totalAmb}`;
+                document.getElementById('stat-amb-busy').textContent = busyAmb.toString();
+                document.getElementById('stat-sar-free').textContent = `${freeSar} / ${totalSar}`;
+                document.getElementById('stat-fire-free').textContent = `${freeFire} / ${totalFire}`;
 
                 // Update Hospitals
                 const hContainer = document.getElementById('hospitals-container');
